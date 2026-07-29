@@ -1,0 +1,3350 @@
+---
+title: "Facebook 56th Legislature"
+author: "André K. Rodarte"
+date: "2024-11-05"
+output: html_document
+---
+
+```{r setup, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+library(here)
+library(tidyverse)
+library(tidytext)
+library(tokenizers)
+library("lexiconPT")
+library(readr)
+library(dplyr)
+library(stringi)
+library(rlang)
+library(fuzzyjoin)
+library(stringi)
+library(tibble)
+
+#Regression
+# install.packages("broom.mixed")
+# install.packages("glmmTMB")
+# install.packages("texreg")
+# install.packages("fixest")
+# install.packages("ggeffects")
+library(car)
+library(broom)
+library(MASS)
+library(broom.mixed)
+library(glmmTMB)
+library(texreg)
+library(fixest)
+library(ggeffects)
+library(marginaleffects)
+
+#Graphs
+library(ggplot2)
+library(lubridate)
+library(showtext)
+library(sysfonts)
+library(scales)  
+
+# install.packages("openxlsx")
+library(openxlsx)
+```
+
+**Set up**
+
+```{r}
+options(digits = 3)
+options(scipen = 999)
+
+# Textual analysis function
+make_re <- function(keywords) {
+  # whole-word boundary for Unicode letters:
+  # not preceded by a letter, not followed by a letter
+  str_c("(?<!\\p{L})(?:", str_c(keywords, collapse = "|"), ")(?!\\p{L})")
+}
+
+count_re <- function(x, re) {
+  stringi::stri_count_regex(
+    x, re,
+    opts_regex = stringi::stri_opts_regex(
+      case_insensitive = FALSE,
+      dotall = TRUE
+      # uword not needed when you already control boundaries with lookarounds
+    )
+  )
+}
+
+# Formatting options
+format_p_apa <- function(p) {
+  dplyr::case_when(
+    is.na(p)        ~ NA_character_,
+    p < .001        ~ "< .001",
+    p < .01         ~ paste0("= .", stringr::str_pad(round(p, 3) * 1000, 3, pad = "0")),
+    p < .05         ~ paste0("= .", stringr::str_pad(round(p, 3) * 1000, 3, pad = "0")),
+    TRUE            ~ paste0("= .", stringr::str_pad(round(p, 2) * 100, 2, pad = "0"))
+  )
+}
+
+sig_stars <- function(p) {
+  dplyr::case_when(
+    is.na(p) ~ "",
+    p < .001 ~ "***",
+    p < .01  ~ "**",
+    p < .05  ~ "*",
+    TRUE     ~ ""
+  )
+}
+
+# Add Font: EB Garamond 
+font_add_google("EB Garamond", "EB Garamond")
+showtext_auto()
+```
+
+# Datasets
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+df_fb    <- readr::read_rds(here::here("..", "_processed_data", "df_fb_clean.rds"))
+df_insta <- readr::read_rds(here::here("..", "_processed_data", "df_insta_clean.rds"))
+df_X     <- readr::read_rds(here::here("..", "_processed_data", "df_X_clean.rds"))
+```
+
+
+# Dictionary Analysis
+
+```{r}
+keywords_parochial <- c(
+    # support / credit-claiming / delivery
+    "apoio",
+    "apoi(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    # infrastructure / public works
+    "asfaltic[oa]s?",
+    "calcad(?:a|as)?",
+    "infraestrutura",
+    "obra(?:s)?",
+    "paviment(?:ar|a|ou|amos|aram|ando)",
+    "pavimentac(?:ao|oes)",
+    "recapeamento(?:s)?",
+    "revitalizac(?:ao|oes)",
+    # goods/services delivered
+    "assistencia(?:s)?",
+    "beneficio(?:s)?",
+    "equipamento(?:s)?",
+    "exame(?:s)?",
+    "mobiliari[oa]s?",
+    "multira(?:o|os)",
+    # earmarks
+    "repass(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    "destin(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    "custeio",
+    "emenda(?:s)?",
+    "recurso(?:s)?",
+    "verba(?:s)?",
+    "repasse(?:s)?",
+    "remessa(?:s)?",
+    "destinad[ao]s?",
+    "destinacao",
+    "milha(?:o|oes)",
+    # local politics / municipal actors
+    "municipal(?:es)?",
+    "municipio(?:s)?",
+    "lideranc(?:a|as)",
+    "prefeit(?:o|a|os|as)",
+    "prefeitura(?:s)?",
+    "vereador(?:a|as|es)?",
+    "secretari[ao]s?",
+    "superintendente(?:s)?",
+    "gestor[ae]s? municipal(?:es)?",
+    "demandas do municipio",
+    "demandas municipais",
+    "necessidade(?:s)?"
+)
+
+
+pattern_parochial <- paste(keywords_parochial, collapse = "|")
+
+
+#######################################
+#######################################
+keywords_programmatic <- c(
+   # institutional arenas
+   "ccj",
+   "comiss(?:ao|oes)",
+   "plenario",
+   "pauta(?:s)?",
+   "pautar",
+   "sess(?:ao|oes)",
+   "tramit(?:ar|e)",
+   "tramitac(?:ao|oes)",
+   "urgencia",
+   # core legislative objects
+   "lei(?:s)?",
+   "projeto(?:s)?",
+   "decreto(?:s)?",
+   "medida(?:s)?",
+   "dispositivo(?:s)?",
+   "materia(?:s)?",
+   "normativ[oa]s?",
+   # legality / constitutionality
+   "constitucional(?:idade)?",
+   "inconstitucional(?:idade)?",
+   # deliberation / evaluation 
+   "apreci(?:ar|ac(?:ao|oes))",
+   "deliberac(?:ao|oes)",
+   "debate(?:s)?",
+   "definic(?:ao|oes)",
+   "validade",
+   # approval / enactment
+   "aprova(?:r|c(?:ao|oes))",   
+   "aprovad[oa]s?",
+   "promulgac(?:ao|oes)",
+   "promulgar",
+   "publicac(?:ao|oes)",
+   "veto(?:s)?",
+   "vetar",
+   "vigor",
+   # regulation / reform
+   "reforma(?:s)?",
+   "regimental",
+   "regimento",
+   "regulamentac(?:ao|oes)",
+   "regulamentar",
+   "revog(?:ar|ac(?:ao|oes))?",    
+   "suprimir",
+   "suspens(?:ao|oes)",
+   "suspender",
+   "proibic(?:ao|oes)",
+   "isenc(?:ao|oes)",
+   # legislative protocols 
+   "coautora?s?",
+   "oficio(?:s)?",
+   "parecer(?:es)?",
+   "requerimento(?:s)?",
+   "protocol(?:ar|o|os|ei|amos|ou|aram|ando)?",
+   # voting
+   "voto(?:s)?",
+   "vot(?:ar|ac(?:ao|oes))",       
+   "votei",
+   "votamos",
+   "votaram",
+   "votarei"
+  )
+
+pattern_programmatic <- paste(keywords_programmatic, collapse = "|")
+
+#######################################
+#######################################
+keywords_lacracao <- c(
+  # escárnio
+  "agora essa",
+  "era so o que faltava",
+  "como se nao bastasse",
+  "como se ja nao bastasse",
+  # zombaria / desmoralização
+  "deboche",
+  "chacota",
+  "escarnio",
+  "palhacad[aá]",
+  "show de horror(?:es)?",
+  "comico se nao fosse tragico",
+  "mimimi(?:s)?",
+  "vitimismo",
+  "mamata",
+  # agressões, xingamentos, e desprezo
+  "chora",
+  "chupa",
+  "caguei",
+  "fdp",
+  "bozo",
+  "jenio",
+  "aberrac(?:ao|oes)",
+  "abjeto(?:s)?",
+  "asqueros[ao]s?",
+  "repugnante(?:s)?",
+  "ridicul[ao]s?",
+  "patetica(?:s)?|patetico(?:s)?",
+  "lixo",
+  "esgoto",
+  "escoria",
+  "verme(?:s)?",
+  "parasita(?:s)?",
+  "horda",
+  "sem carater",
+  "anti[ -]?etico(?:s)?",
+  "cara de pau",
+  "pinoquio",
+  # insultos 
+  "idiota(?:s)?",
+  "imbecil(?:is|es)?",
+  "babaca(?:s)?",
+  "cretin[ao]s?",
+  "energumên?[ao]s?",
+  "tosco(?:s)?",
+  "bunda mole",
+  "covardia",
+  "covarde(?:s)?",
+  "trair[ao]s?",
+  "traidor(?:a|es|as)?(?: da patria)?",
+  "patife(?:s)?",
+  "patifari(?:a|as)",
+  "canalha(?:s)?",
+  "canalhic(?:e|es)",
+  "vigarista(?:s)?",
+  "farsante(?:s)?",
+  "farsa(?:s)?",
+  "charlatanism(?:o|os)",
+  "claque",
+  "capanga(?:s)?",
+  "jagunco(?:s)?",
+  # acusações 
+  "bandido(?:s)?",
+  "marginal(?:is)?",
+  "chefe da quadrilha",
+  "familicia",
+  "miliciano",
+  "genocida",
+  "bandidolatria",
+  "lulaladr(?:ao|oes)",
+  # rotulações políticas extremas ou depreciativas
+  "militante petista(?:s)?",
+  "esquerist[ao]s?",
+  "esquerdista(?:s)?",
+  "esquerdopata(?:s)?",
+  "minion(?:s)?",
+  "bolsominion(?:s)?",
+  "gado",
+  "fascista(?:s)?",
+  "nazista(?:s)?",
+  "terraplanista(?:s)?",
+  # falsidade / cinismo / hipocrisia
+  "mentiros[ao]s?",
+  "mentiroso compulsivo|mentirosa compulsiva",
+  "cinic(?:o|a|os|as)",
+  "cinismo",
+  "hipocrit(?:a|as)?",
+  "hipocrisia",
+  "lacrador(?:a|as|es)?",
+  "lacrolandia",
+  "lacrar",
+  "lacrosfera",
+  "politiqueir[ao]s?",
+  # deboche
+  "aham",
+  "sqn",
+  "so que nao",
+  "¯\\\\_(ツ)_/¯",
+  "faz[- ]me rir",
+  "piada pronta",
+  "parabens aos envolvidos",
+  "simples assim"
+)
+
+pattern_lacracao <- paste(keywords_lacracao, collapse = "|")
+
+
+# Consolidate 
+re_programmatic   <- make_re(keywords_programmatic)
+re_parochial      <- make_re(keywords_parochial)
+re_lacracao      <- make_re(keywords_lacracao)
+```
+
+## Occurrences
+
+For the code below, the function `stri_count_regex()` returns the number of non-overlapping matches of a regular expression within each string, which is appropriate when measuring the raw frequency of dictionary terms in text. To prevent spurious matches inside longer words, boundary guards such as `(?<!\p{L}) ... (?!\p{L})` are added, ensuring that terms like *lei* are not matched within *aleluia* and that *voto* is not double-counted in *votos*, unless the regex explicitly allows for plurals (e.g., `voto(s)?`). Furthermore, because the search is applied directly to the full text rather than tokenized words, multiword phrases such as *derrubar o veto* are also accurately identified.
+
+##### Facebook
+
+```{r}
+df_fb <- df_fb %>%
+  mutate(
+    programmatic_matches   = count_re(text_combined, re_programmatic),
+    parochial_matches      = count_re(text_combined, re_parochial),
+    lacracao_matches       = count_re(text_combined, re_lacracao)
+  )
+```
+
+##### Instagram
+
+```{r}
+df_insta <- df_insta %>%
+  mutate(
+    programmatic_matches   = count_re(body, re_programmatic),
+    parochial_matches      = count_re(body, re_parochial),
+    lacracao_matches       = count_re(body, re_lacracao)
+  )
+```
+
+##### Twitter
+
+```{r}
+df_X <- df_X %>%
+  mutate(
+    programmatic_matches   = count_re(body, re_programmatic),
+    parochial_matches      = count_re(body, re_parochial),
+    lacracao_matches       = count_re(body, re_lacracao)
+  )
+```
+
+```{r}
+# Export
+# readr::write_rds(
+#   df_fb,
+#   here::here("..", "_processed_data", "fb_analysis.rds")
+#   )
+# readr::write_rds(
+#   df_insta,
+#   here::here("..", "_processed_data", "insta_analysis.rds")
+#   )
+# readr::write_rds(
+#   df_X,
+#   here::here("..", "_processed_data", "X_analysis.rds")
+#   )
+```
+
+# Sentiment Analysis
+
+```{r}
+df_fb %>%
+  summarise(
+    parochial_sentiment = mean(compound_sentiment[parochial_matches > 0], na.rm = TRUE),
+    programmatic_sentiment = mean(compound_sentiment[programmatic_matches > 0], na.rm = TRUE),
+    lacracao_sentiment = mean(compound_sentiment[lacracao_matches > 0], na.rm = TRUE)
+  )
+```
+
+```{r}
+cor.test(
+  df_fb$lacracao_matches,
+  df_fb$negative_intensity,
+  use = "complete.obs",
+  method = "pearson"
+)
+```
+
+# [SECT1] Congressional Content
+
+##### Facebook
+
+**Individual Frequencies**
+
+```{r}
+avg_prop <- df_fb %>%
+  group_by(author) %>%
+  summarise(
+    prop_posts_parochial_or_programmatic = mean(
+      (parochial_matches > 0) | (programmatic_matches > 0),
+      na.rm = TRUE
+    ),
+    .groups = "drop"
+  ) %>%
+  summarise(
+    avg_prop_across_authors = mean(prop_posts_parochial_or_programmatic, na.rm = TRUE),
+    sd_prop_across_authors  = sd(prop_posts_parochial_or_programmatic, na.rm = TRUE)
+  )
+avg_prop
+```
+
+**On average, politicians in the dataset produced posts containing either a parochial or a programmatic match in approximately 53.7% of their Facebook content (*SD* ≈ 0.15).** This measure was calculated by first determining, for each individual politician, the proportion of posts that included at least one parochial or programmatic match, and then averaging these proportions across all politicians.
+
+##### Instagram
+
+```{r}
+# Aggregate by account 
+post_counts_insta <- df_insta %>%
+  group_by(author) %>%
+  summarize(num_posts = n())
+
+# Aggregate keyword counts by account for programmatic matches
+programmatic_counts_insta <- df_insta %>%
+  group_by(author) %>%
+  summarize(programmatic_matches = sum(programmatic_matches))
+
+# Aggregate keyword counts by account for parochial matches
+parochial_counts_insta <- df_insta %>%
+  group_by(author) %>%
+  summarize(parochial_matches = sum(parochial_matches))
+
+# Merge the keyword counts with the number of posts
+programmatic_counts_insta <- merge(programmatic_counts_insta, post_counts_insta, by = "author")
+parochial_counts_insta <- merge(parochial_counts_insta, post_counts_insta, by = "author")
+
+# Calculate the average matches per post for each account
+programmatic_counts_insta$avg_programmatic_matches <- programmatic_counts_insta$programmatic_matches / programmatic_counts_insta$num_posts
+parochial_counts_insta$avg_parochial_matches <- parochial_counts_insta$parochial_matches / parochial_counts_insta$num_posts
+```
+
+##### Twitter
+
+```{r}
+# Aggregate by account
+post_counts_X <- df_X %>%
+  group_by(author) %>%
+  summarize(num_posts = n())
+
+# Aggregate keyword counts by account for programmatic matches
+programmatic_counts_X <- df_X %>%
+  group_by(author) %>%
+  summarize(programmatic_matches = sum(programmatic_matches))
+
+# Aggregate keyword counts by account for parochial matches
+parochial_counts_X <- df_X %>%
+  group_by(author) %>%
+  summarize(parochial_matches = sum(parochial_matches))
+
+# Merge the keyword counts with the number of posts
+programmatic_counts_X <- merge(programmatic_counts_X, post_counts_X, by = "author")
+parochial_counts_X <- merge(parochial_counts_X, post_counts_X, by = "author")
+
+# Calculate the average matches per post for each account
+programmatic_counts_X$avg_programmatic_matches <- programmatic_counts_X$programmatic_matches / programmatic_counts_X$num_posts
+parochial_counts_X$avg_parochial_matches <- parochial_counts_X$parochial_matches / parochial_counts_X$num_posts
+
+```
+
+# Cross-platform analysis
+
+```{r}
+#Facebook
+total_programmatic_FB  <- sum(df_fb$programmatic_matches, na.rm = TRUE)
+total_parochial_FB     <- sum(df_fb$parochial_matches, na.rm = TRUE)
+total_lacracao_FB      <- sum(df_fb$lacracao_matches, na.rm = TRUE)
+avg_programmatic_FB    <- mean(df_fb$programmatic_matches, na.rm = TRUE)
+avg_parochial_FB       <- mean(df_fb$parochial_matches, na.rm = TRUE)
+avg_lacracao_FB        <- mean(df_fb$lacracao_matches, na.rm = TRUE)
+
+#Instagram
+total_programmatic_insta  <- sum(df_insta$programmatic_matches, na.rm = TRUE)
+total_parochial_insta     <- sum(df_insta$parochial_matches, na.rm = TRUE)
+total_lacracao_insta      <- sum(df_insta$lacracao_matches, na.rm = TRUE)
+avg_programmatic_insta    <- mean(df_insta$programmatic_matches, na.rm = TRUE)
+avg_parochial_insta       <- mean(df_insta$parochial_matches, na.rm = TRUE)
+avg_lacracao_insta        <- mean(df_insta$lacracao_matches, na.rm = TRUE)
+
+# Twitter
+total_programmatic_X  <- sum(df_X$programmatic_matches, na.rm = TRUE)
+total_parochial_X     <- sum(df_X$parochial_matches, na.rm = TRUE)
+total_lacracao_X      <- sum(df_X$lacracao_matches, na.rm = TRUE)
+avg_programmatic_X    <- mean(df_X$programmatic_matches, na.rm = TRUE)
+avg_parochial_X       <- mean(df_X$parochial_matches, na.rm = TRUE)
+avg_lacracao_X        <- mean(df_X$lacracao_matches, na.rm = TRUE)
+
+# Create a combined comparison data frame
+comparison_df <- data.frame(
+  Metric = c(
+    "Total Programmatic Matches",
+    "Total Parochial Matches",
+    "Total Lacracao Matches",
+    "Average Programmatic Matches per Post",
+    "Average Parochial Matches per Post",
+    "Average Lacracao Matches per Post"
+  ),
+  Facebook = c(as.integer(total_programmatic_FB), 
+               as.integer(total_parochial_FB), 
+               as.integer(total_lacracao_FB), 
+               round(avg_programmatic_FB, 2), 
+               round(avg_parochial_FB, 2),
+               round(avg_lacracao_FB, 2)),
+  Instagram = c(as.integer(total_programmatic_insta), 
+                as.integer(total_parochial_insta), 
+                as.integer(total_lacracao_insta), 
+                round(avg_programmatic_insta, 2), 
+                round(avg_parochial_insta, 2),
+                round(avg_lacracao_insta, 2)),
+  Twitter = c(as.integer(total_programmatic_X), 
+              as.integer(total_parochial_X),
+              as.integer(total_lacracao_X), 
+              round(avg_programmatic_X, 2), 
+              round(avg_parochial_X, 2),
+              round(avg_lacracao_X))
+)
+print(comparison_df)
+```
+
+**Result:** Facebook a higher number of matches and a higher average of programmatic and parochial matches per post compared to Instagram and X.
+
+```{r}
+# Helper function to process each platform
+aggregate_proportion_by_month <- function(df, platform_name) {
+  df %>%
+    mutate(period = floor_date(timestamp, unit = "month")) %>%
+    group_by(period) %>%
+    summarise(
+      parochial    = mean(parochial_matches > 0, na.rm = TRUE),
+      programmatic = mean(programmatic_matches > 0, na.rm = TRUE),
+      lacracao     = mean(lacracao_matches > 0, na.rm = TRUE),
+      negative     = mean(compound_sentiment < 0, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(period) %>%
+    mutate(time = row_number()) %>%
+    pivot_longer(
+      cols = c(parochial, programmatic, lacracao, negative),
+      names_to = "match_type",
+      values_to = "proportion"
+    ) %>%
+    mutate(platform = platform_name)
+}
+
+# Combined monthly dataset
+  #NOTE: This makes "programmatic" the reference category, thus showing how much the parochial slope differs from the programmatic slope. "Pprogrammatic" remains the reference category wherever the model is estimated after filtering out lacracao
+
+df_all_long <- bind_rows(
+  aggregate_proportion_by_month(df_fb,    "Facebook"),
+  aggregate_proportion_by_month(df_insta, "Instagram"),
+  aggregate_proportion_by_month(df_X,     "Twitter")
+) %>%
+  mutate(
+    time_c = time - mean(time, na.rm = TRUE),
+    match_type = factor(
+      match_type,
+      levels = c("programmatic", "parochial", "lacracao", "negative")
+    )
+  )
+```
+
+```{r}
+df_all_long %>%
+  group_by(platform, match_type) %>%
+  summarise(
+    min_proportion  = min(proportion, na.rm = TRUE),
+    max_proportion  = max(proportion, na.rm = TRUE),
+    mean_proportion = mean(proportion, na.rm = TRUE),
+    SD_proportion   = sd(proportion, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+#### Plot Proportions
+
+```{r}
+# Summarize mean + SD
+df_all_long %>%
+  mutate(
+    match_type = dplyr::recode(match_type,
+      "programmatic" = "Programmatic",
+      "parochial"    = "Parochial",
+      "lacracao"     = "Antagonism",
+      "negative"     = "Negative"
+    ),
+    match_type = factor(
+      match_type,
+      levels = c("Programmatic", "Parochial", "Antagonism", "Negative")
+    )
+  ) %>%
+  group_by(platform, match_type) %>%
+  summarise(
+    mean_proportion = mean(proportion, na.rm = TRUE),
+    sd_proportion   = sd(proportion, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = platform, y = mean_proportion, fill = match_type)) +
+  geom_col(
+    position = position_dodge(width = 0.8),
+    width = 0.7
+  ) +
+  geom_errorbar(
+    aes(
+      ymin = mean_proportion - sd_proportion,
+      ymax = mean_proportion + sd_proportion
+    ),
+    position = position_dodge(width = 0.8),
+    width = 0.2,
+    linewidth = 0.6
+  ) +
+  scale_fill_manual(values = c(
+    "Programmatic" = "coral",
+    "Parochial"    = "darkgreen",
+    "Antagonism"   = "darkred",
+    "Negative"     = "gray50"
+  )) +
+  scale_y_continuous(
+    labels = percent_format(accuracy = 1),
+    expand = expansion(mult = c(0, 0.05))
+  ) +
+  labs(
+    title = "Average Proportion of Posts by Platform",
+    subtitle = "Error bars indicate ±1 standard deviation",
+    x = NULL,
+    y = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 30),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  )
+```
+
+*Figure. Average proportion of posts classified as programmatic, parochial, negative, and antagonistic (lacração) across Facebook, Instagram, and Twitter.* Bars represent the mean proportion of posts within each category by platform, where proportions are defined as the share of posts meeting each criterion (i.e., at least one match for programmatic, parochial, or lacração content, and negative sentiment defined as compound sentiment < 0). Error bars indicate ±1 standard deviation. Across platforms, parochial content is most prevalent on Facebook and Instagram, whereas both programmatic and parochial content appear less frequently on Twitter. Antagonistic content remains comparatively low across all platforms. Twitter exhibits the highest proportion of negative content, followed by Facebook. 
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "cross_platform_proportions.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+## Temporal trends
+
+#### Regressions
+
+```{r}
+time_model_fb_prog <- lm(
+  proportion ~ time_c,
+  data = df_all_long %>%
+    filter(platform == "Facebook", match_type == "programmatic")
+)
+
+time_model_fb_paro <- lm(
+  proportion ~ time_c,
+  data = df_all_long %>%
+    filter(platform == "Facebook", match_type == "parochial")
+)
+
+summary(time_model_fb_prog)
+confint(time_model_fb_prog)
+
+summary(time_model_fb_paro)
+confint(time_model_fb_paro)
+```
+
+*Results*: At the midpoint of the legislature, the predicted proportion of programmatic posts is 27.6% (intercept). Programmatic content declines over time by approximately 0.14 percentage points per month (β = −0.00136, 95% CI [−0.00248, −0.00025]), equivalent to about 1.6 percentage points per year. By contrast, parochial posts are more prevalent at baseline, with a predicted proportion of 30.6% at the midpoint. Moreover, parochial content increases over time by approximately 0.18 percentage points per month (β = 0.00176, 95% CI [0.00084, 0.00268]), or about 2.1 percentage points per year. The key finding here is that, while programmatic content becomes less frequent, parochial content shows a positive linear trend over time. Time explains a modest share of variation in programmatic content (R² = 0.154) and a larger, though still moderate, share for parochial content (R² = 0.309).
+
+#### Engagement trends
+
+```{r}
+# Helper function to aggregate monthly engagement by content type
+aggregate_engagement_by_month <- function(df, platform_name, like_var) {
+  like_var <- enquo(like_var)
+  df %>%
+    mutate(
+      period = floor_date(timestamp, unit = "month"),
+      likes = coalesce(!!like_var, 0)
+    ) %>%
+    group_by(period) %>%
+    summarise(
+      parochial    = sum(likes[parochial_matches > 0], na.rm = TRUE),
+      programmatic = sum(likes[programmatic_matches > 0], na.rm = TRUE),
+      lacracao     = sum(likes[lacracao_matches > 0], na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(period) %>%
+    mutate(time = row_number()) %>%
+    pivot_longer(
+      cols = c(parochial, programmatic, lacracao),
+      names_to = "match_type",
+      values_to = "engagement"
+    ) %>%
+    mutate(platform = platform_name)
+}
+
+# Combined monthly dataset
+df_engagement_long <- bind_rows(
+  aggregate_engagement_by_month(df_fb,    "Facebook",  likes),
+  aggregate_engagement_by_month(df_insta, "Instagram", num_likes),
+  aggregate_engagement_by_month(df_X,     "Twitter",   like_count)
+) %>%
+  mutate(
+    time_c = time - mean(time, na.rm = TRUE),
+    match_type = factor(match_type, levels = c("programmatic", "parochial", "lacracao")),
+    plot_color = case_when(
+      platform == "Facebook" & match_type == "parochial"    ~ "Facebook_Parochial",
+      platform == "Facebook" & match_type == "programmatic" ~ "Facebook_Programmatic",
+      platform == "Facebook" & match_type == "lacracao"     ~ "Facebook_Lacracao",
+      TRUE ~ "Other"
+    )
+  )
+```
+
+#### Graphs
+
+```{r}
+ggplot(
+  df_plot,
+  aes(
+    x = period,
+    y = proportion,
+    color = plot_color,
+    linetype = platform,
+    group = interaction(platform, match_type)
+  )
+) +
+  geom_line(linewidth = 1, lineend = "round") +
+  labs(
+    title = "Proportion of Posts Containing Parochial or Programmatic Content Over Time",
+    x = " ",
+    y = " ",
+    color = "Match Type",
+    linetype = "Platform"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    plot.title = element_text(size = 55, face = "bold"),
+    axis.text = element_text(size = 40),
+    legend.title = element_text(size = 55, face = "bold"),
+    legend.text = element_text(size = 55),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  scale_y_continuous(
+    labels = label_percent(accuracy = 1),
+    breaks = seq(0, 0.5, by = 0.1)
+  ) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_color_manual(
+    values = c(
+      "Facebook_Parochial" = "darkgreen",
+      "Facebook_Programmatic" = "coral",
+      "Other" = "lightgrey"
+    ),
+    labels = c(
+      "Facebook_Parochial" = "Parochial Match",
+      "Facebook_Programmatic" = "Programmatic Match"
+    ),
+    breaks = c("Facebook_Parochial", "Facebook_Programmatic")
+  ) +
+  scale_linetype_manual(
+    values = c(
+      "Facebook" = "solid",
+      "Instagram" = "dotted",
+      "Twitter" = "twodash"
+    )
+  )
+```
+
+**Figure: Evolution of Parochial and Programmatic Matches Over Time**. The graph displays trends for Facebook, Instagram, and Twitter. The Facebook results are highlighted in blue (parochial matches) and red (programmatic matches), whereas the lines for Twitter and Instagram are rendered in grey.
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "evolution_matches.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+plot_FB <- df_all_long %>%
+  filter(
+    platform == "Facebook",
+    match_type %in% c("parochial", "programmatic", "lacracao")
+  ) %>%
+  mutate(
+    match_type = factor(
+      match_type,
+      levels = c("parochial", "programmatic", "lacracao"),
+      labels = c("Parochial Match", "Programmatic Match", "Lacração Match")
+    )
+  )
+
+ggplot(
+  plot_FB %>% 
+    filter(match_type %in% c("Parochial Match", "Programmatic Match")),
+  aes(
+    x = period,
+    y = proportion,
+    color = match_type,
+    group = match_type
+  )
+) +
+  geom_line(linewidth = 1, lineend = "round") +
+  labs(
+    title = "Proportion of Facebook Posts with Parochial or Programmatic Content Over Time",
+    x = " ",
+    y = " ",
+    color = "Match Type"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    plot.title = element_text(size = 55, face = "bold"),
+    axis.text = element_text(size = 40),
+    legend.title = element_text(size = 55, face = "bold"),
+    legend.text = element_text(size = 55),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  scale_y_continuous(
+    labels = label_percent(accuracy = 1),
+    breaks = seq(0, 0.5, by = 0.1)
+  ) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_color_manual(
+    values = c(
+      "Parochial Match" = "darkgreen",
+      "Programmatic Match" = "coral"
+    )
+  )
+```
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "evolution_FB_matches.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+plot_FB <- df_all_long %>%
+  filter(
+    platform == "Facebook",
+    match_type %in% c("parochial", "programmatic", "lacracao")
+  ) %>%
+  mutate(
+    match_type = factor(
+      match_type,
+      levels = c("parochial", "programmatic", "lacracao"),
+      labels = c("Parochial Match", "Programmatic Match", "Lacração Match")
+    )
+  )
+
+ggplot(
+  plot_FB,
+  aes(
+    x = period,
+    y = proportion,
+    color = match_type,
+    group = match_type
+  )
+) +
+  geom_line(linewidth = 1, lineend = "round") +
+  labs(
+    title = "Proportion of Facebook Posts with Parochial, Programmatic, or Lacração Content Over Time",
+    x = " ",
+    y = " ",
+    color = "Match Type"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    plot.title = element_text(size = 55, face = "bold"),
+    axis.text = element_text(size = 40),
+    legend.title = element_text(size = 55, face = "bold"),
+    legend.text = element_text(size = 55),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  scale_y_continuous(
+    labels = label_percent(accuracy = 1),
+    breaks = seq(0, 0.5, by = 0.1)
+  ) +
+  coord_cartesian(ylim = c(0, 0.5)) +
+  scale_color_manual(
+    values = c(
+      "Parochial Match" = "darkgreen",
+      "Programmatic Match" = "coral",
+      "Lacração Match" = "darkred"
+    )
+  )
+```
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "evolution_FB_3matches.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+# Keep only Facebook
+plot_fb_engagement <- df_engagement_long %>%
+  filter(platform == "Facebook") %>%
+  mutate(
+    match_type = factor(
+      match_type,
+      levels = c("programmatic", "parochial", "lacracao"),
+      labels = c("Programmatic", "Parochial", "Lacração")
+    )
+  )
+
+ggplot(
+  plot_fb_engagement,
+  aes(
+    x = period,
+    y = engagement,
+    color = match_type,
+    group = match_type
+  )
+) +
+  geom_line(linewidth = 1.4, lineend = "round") +
+  labs(
+    title = "Evolution of Engagement Metrics Associated with Content Types on Facebook",
+    x = " ",
+    y = " ",
+    color = "Content type"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    plot.title = element_text(size = 55, face = "bold"),
+    axis.text = element_text(size = 40),
+    legend.title = element_text(size = 55, face = "bold"),
+    legend.text = element_text(size = 55),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  scale_color_manual(
+    values = c(
+      "Programmatic" = "coral",
+      "Parochial" = "darkgreen",
+      "Lacração" = "darkred"
+    )
+  ) +
+  scale_y_continuous(
+    labels = label_comma()
+  )
+```
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "evolution_FB_engagement.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+# Engagement analysis
+
+#### Facebook
+
+The following regression tests whether positive engagement is significantly related to the use of either one of those dictionaries.
+
+```{r}
+post_counts <- df_fb %>%
+  group_by(page_name) %>%
+  summarise(num_posts = n(), .groups = "drop")
+
+ggplot(post_counts, aes(x = num_posts)) +
+  geom_histogram(bins = 40) +
+  labs(
+    title = "Distribution of Posting Activity per Politician",
+    x = "Number of Posts",
+    y = "Number of Politicians"
+  ) +
+  theme_minimal()
+```
+
+To account for the high variance in user activity, I controlled for the volume of content produced by each account. As shown in the distribution of posting activity, a small number of politicians are highly prolific, while the majority maintain a more moderate output. To ensure these outliers did not disproportionately influence the model while allowing for cross-variable comparison, I included a z-standardized measure of total posts per politician (num_posts_z).
+
+```{r}
+df_fb_regression <- df_fb %>%
+  left_join(post_counts, by = "page_name") %>%
+  mutate(num_posts_z = as.numeric(scale(num_posts)))
+```
+
+Second, checking for the distribution of the dependent variable:
+
+```{r}
+ggplot(df_fb, aes(x = log1p(engagement))) +
+  geom_histogram(bins = 50) +
+  labs(
+    title = "Distribution of Logged Engagement",
+    x = "log(1 + )",
+    y = "Number of posts"
+  ) +
+  theme_minimal()
+```
+
+The raw engagement metrics exhibit the heavy right-skew typical of social media interaction data. While a log-transformation log(1 + x) was utilized for exploratory visualization to normalize the distribution, the final analysis employs the raw counts within a Negative Binomial framework to preserve the integrity of the count data.
+
+```{r}
+df_fb_regression %>%
+  summarise(
+    var_programmatic  = var(programmatic_matches, na.rm = TRUE),
+    var_parochial     = var(parochial_matches, na.rm = TRUE),
+    var_page_followers = var(page_followers, na.rm = TRUE),
+    na_programmatic   = sum(is.na(programmatic_matches)),
+    na_parochial      = sum(is.na(parochial_matches)),
+    na_page_followers = sum(is.na(page_followers))
+  )
+```
+
+**Handling NAs** Missing values in the page_followers variable were imputed within account. Specifically, for each politician (page_name), missing values were replaced with the mean follower count observed across that account’s posts. This approach is appropriate because follower counts are an account-level attribute and are typically constant across posts.
+
+```{r}
+# missing_followers_by_page <- df_fb %>%
+#   group_by(page_name) %>%
+#   summarise(
+#     total_posts = n(),
+#     n_missing = sum(is.na(page_followers)),
+#     n_nonmissing = sum(!is.na(page_followers)),
+#     all_missing = all(is.na(page_followers)),
+#     any_missing = any(is.na(page_followers)),
+#     .groups = "drop"
+#   )
+# 
+# missing_followers_by_page %>%
+#   summarise(
+#     pages_with_any_missing = sum(any_missing),
+#     pages_with_all_missing = sum(all_missing)
+#   )
+
+df_fb_regression <- df_fb_regression %>%
+  group_by(page_name) %>%
+  mutate(
+    page_followers = if_else(
+      is.na(page_followers),
+      mean(page_followers, na.rm = TRUE),
+      page_followers
+    )
+  ) %>%
+  ungroup() %>%
+  mutate(page_followers = if_else(is.nan(page_followers), NA_real_, page_followers)) %>%
+  filter(!is.na(page_followers))
+
+sum(is.na(df_fb_regression$page_followers))
+```
+
+```{r}
+#Making sure the distribution is still similar after imputing values where there were NAs.
+summary_stats <- tibble(
+  dataset = c("Original df_fb", "Regression df_fb_regression"),
+  mean_page_followers = c(
+    mean(df_fb$page_followers, na.rm = TRUE),
+    mean(df_fb_regression$page_followers, na.rm = TRUE)
+  ),
+  median_page_followers = c(
+    median(df_fb$page_followers, na.rm = TRUE),
+    median(df_fb_regression$page_followers, na.rm = TRUE)
+  ),
+  sd_page_followers = c(
+    sd(df_fb$page_followers, na.rm = TRUE),
+    sd(df_fb_regression$page_followers, na.rm = TRUE)
+  ),
+  missing_page_followers = c(
+    sum(is.na(df_fb$page_followers)),
+    sum(is.na(df_fb_regression$page_followers))
+  )
+)
+summary_stats
+```
+
+Given that the dependent variable consists of non-negative integers with substantial overdispersion (where the variance significantly exceeds the mean), I estimate a Negative Binomial regression model. All continuous predictors are z-standardized to facilitate the comparison of coefficients across different scales. Additionally, the model includes time-fixed effects (month) to account for temporal fluctuations in the political climate and clustered standard errors at the politician level to account for within-subject correlation.
+
+Preliminary diagnostics indicated that the inclusion of individual party dummies led to the omission of several categories due to insufficient within-category variation and small subgroup sizes. Furthermore, the data revealed significant collinearity between ideological leaning and government alignment; specifically, "Opposition" status was almost exclusively associated with left-leaning ideological scores in this sample. To resolve these dependencies and facilitate a more theoretically robust comparison, I replaced the individual indicators with a tripartite political bloc typology. This approach collapses the collinear variables into three distinct, mutually exclusive categories: *Left_Opposition:* All politicians in opposition. *Center_Government:* Government-aligned politicians with ideology scores less than or equal to 0.5 standard deviations from the mean. *Right_Government:* Government-aligned politicians with ideology scores greater than 0.5 standard deviations from the mean
+
+By employing this typology, the model avoids the instability caused by near-perfect predictors while allowing for a stable estimation of marginal effects across the ideological-alignment spectrum.
+
+```{r}
+df_fb_regression <- df_fb_regression %>%
+  mutate(
+    congressional_content = case_when(
+      # Ties (exclude later)
+      programmatic_matches > 0 & parochial_matches > 0 &
+        programmatic_matches == parochial_matches ~ "tie",
+      
+      # Programmatic dominant
+      programmatic_matches > 0 &
+        programmatic_matches > parochial_matches ~ "programmatic",
+      
+      # Parochial dominant
+      parochial_matches > 0 &
+        parochial_matches > programmatic_matches ~ "parochial",
+      
+      # No matches
+      programmatic_matches == 0 & parochial_matches == 0 ~ "other"
+    ),
+    congressional_content = factor(
+      congressional_content,
+      levels = c("other", "programmatic", "parochial", "tie")))
+
+table(df_fb_regression$congressional_content)
+```
+
+```{r}
+df_fb_regression <- df_fb_regression %>%
+  mutate(
+    programmatic_matches_z = as.numeric(scale(programmatic_matches)),
+    parochial_matches_z    = as.numeric(scale(parochial_matches)),
+    page_followers_z       = as.numeric(scale(page_followers)),
+    ideology_z             = as.numeric(scale(ideology_2021)),
+    num_posts_z            = as.numeric(scale(num_posts)),
+    ProGov = factor(
+      ProGov,
+      levels = c(-1, 1),
+      labels = c("Opposition", "Government base")
+    )
+  )
+
+#Handling colinearity
+df_fb_regression <- df_fb_regression %>%
+  mutate(political_bloc = case_when(
+    ProGov == "Opposition" ~ "Left_Opposition",
+    # 2. Government split at a single point (0.5)
+    ProGov == "Government base" & ideology_z > 0.5  ~ "Right_Government",
+    ProGov == "Government base" & ideology_z <= 0.5 ~ "Center_Government"
+  )) %>%
+  mutate(political_bloc = factor(political_bloc, 
+                                levels = c("Center_Government", "Left_Opposition", "Right_Government")))
+
+# CHECK
+df_fb_regression %>%
+  group_by(political_bloc) %>%
+  summarise(
+    n_politicians = n_distinct(page_name),
+    .groups = "drop"
+  )
+
+# Time handling
+df_fb_regression <- df_fb_regression %>%
+  mutate(month = floor_date(timestamp, "month"))
+
+df_fb_regression <- df_fb_regression %>%
+  mutate(month = format(timestamp, "%Y-%m"))
+```
+
+```{r}
+model_congressional <- fenegbin(
+  engagement ~ 
+    congressional_content +
+    page_followers_z + num_posts_z +
+    political_bloc +
+    post_format + has_hashtags | 
+    month,
+  cluster = ~page_name,
+  data = df_fb_regression %>%
+    filter(congressional_content != "tie") %>%
+    droplevels()
+)
+
+summary(model_congressional)
+```
+
+Posts related to congressional activity receive significantly lower engagement than other types of content. Programmatic posts are associated with approximately 21% lower engagement relative to non-congressional posts, while parochial posts underperform even more substantially, receiving roughly 47% less engagement.
+
+##### Robustness checks
+
+```{r}
+df_robustness <- df_fb_regression %>%
+  filter(
+    congressional_content != "tie",
+    engagement <= quantile(engagement, 0.99, na.rm = TRUE)
+  ) %>%
+  droplevels()
+
+summary(
+  fenegbin(engagement ~ congressional_content 
+           + page_followers_z + num_posts_z + political_bloc + post_format + has_hashtags | 
+             month,
+           cluster = ~page_name,
+           data = df_robustness))
+```
+
+*Summary:* To ensure that results are not driven by highly viral posts, I re-estimated the model excluding the top 1% of posts in terms of engagement. The results remain substantively unchanged. Programmatic posts continue to receive significantly lower engagement than non-congressional posts, while parochial posts exhibit an even stronger negative association. Results are statistical significant and can be found in the appendix.
+
+```{r}
+df_fb_regression_robustness <- df_fb_regression %>%
+  mutate(high_engagement = ifelse(engagement >= 300, 1, 0))
+
+model_low  <- fenegbin(engagement ~ congressional_content 
+           + page_followers_z + num_posts_z + political_bloc + post_format + has_hashtags | 
+             month, cluster = ~page_name,
+                       data = df_fb_regression_robustness %>% filter(high_engagement == 0))
+
+model_high <- fenegbin(engagement ~ congressional_content 
+           + page_followers_z + num_posts_z + political_bloc + post_format + has_hashtags | 
+             month, cluster = ~page_name,
+                       data = df_fb_regression_robustness %>% filter(high_engagement == 1))
+
+print(model_low)
+print(model_high)
+```
+
+
+```{r}
+# Reference level is set to Government base
+# 1. Calculate predicted engagement for the three blocs
+eff_blocs <- predict_response(model, terms = "political_bloc", margin = "marginalmeans")
+
+# 2. Update the Plotting Logic
+font_add_google("EB Garamond", "EB Garamond")
+showtext_auto()
+
+ggplot(eff_blocs, aes(x = x, y = predicted, color = x)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, size = 1) +
+  scale_color_manual(values = c(
+    "Center_Government" = "steelblue", 
+    "Left_Opposition" = "darkred", 
+    "Right_Government" = "darkblue"
+  )) +
+  scale_x_discrete(labels = c(
+    "Center_Government" = "Center_Government\n(n=82)",
+    "Left_Opposition" = "Left_Opposition\n(n=119)",
+    "Right_Government" = "Right_Government\n(n=279)"
+  )) +
+  labs(
+    title = "Predicted Engagement by Political Bloc",
+    
+    x = "Political Bloc",
+    y = "Predicted Engagement (Post-level)",
+    caption = "Note: Errors bars represent 95% Confidence Intervals."
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(legend.position = "none")
+```
+
+*Figure: Predicted Engagement across Political Blocs.*. Note: Points represent marginal effects (predicted engagement) estimated from a Negative Binomial regression model with time-fixed effects (month) and standard errors clustered at the politician level. Predicted values are calculated while holding all continuous covariates at their mean and categorical controls at their reference levels (Text for post format). The x-axis categorizes politicians into three distinct blocs: Left-leaning Opposition (N=119), Center-aligned Government (N=69), and Right-aligned Government (N=292. Error bars represent 95% confidence intervals with standard errors clustered at the politician level.
+
+```{r}
+predictions(
+  model_congressional,
+  newdata = datagrid(
+    congressional_content = c("other", "programmatic", "parochial"),
+    page_followers_z = 0,
+    num_posts_z = 0,
+    political_bloc = "Center_Government",
+    post_format = "Image",
+    has_hashtags = "0",
+    month = "2020-04"   # mid-point
+  ),
+  vcov = FALSE
+)
+```
+
+```{r}
+comparisons(
+  model_congressional,
+  variables = "congressional_content",
+  newdata = datagrid(
+    page_followers_z = 0,
+    num_posts_z = 0,
+    political_bloc = "Center_Government",
+    post_format = "Image",
+    has_hashtags = "0",
+    month = "2020-04"   # mid-point
+  ),
+  vcov = FALSE
+)
+```
+
+*Summary:* To facilitate interpretation of the regression results, I computed predicted levels of engagement for different types of content using the estimated negative binomial model. Specifically, I generated predictions for parochial, programmatic, and non-classified posts, holding all covariates constant at typical values. The predicted values indicate that a programmatic post is expected to receive 1,305 units of engagement, compared to 875 for a parochial post and 1,663 for a post without reference to lawmaking or constituency services. Pairwise comparisons show that programmatic posts receive about 357 fewer units of engagement than non-congressional posts, while parochial posts receive approximately 788 fewer units of engagement.
+
+Footnote: Continuous variables (page followers and posting activity) were set at their means (z = 0), and categorical variables were fixed at common reference categories (center-aligned government bloc, image posts, no hashtags). Because the model includes month fixed effects, predictions were computed for a specific observed month (April 2020), though results are substantively similar across periods.
+
+```{r}
+#Testing for colinearity
+lm_vif <- lm(
+  positive_engagement ~ programmatic_matches_z + parochial_matches_z +
+    page_followers_z + ideology_z + num_posts_z +
+    ProGov + post_format + has_hashtags,
+  data = df_fb_regression
+)
+
+collinearity <- car::vif(lm_vif)
+print(collinearity)
+```
+
+```{r}
+tidy_model_congressional <- broom.mixed::tidy(model_congressional, effects = "fixed") %>%
+  mutate(
+    p.value_fmt = case_when(
+      p.value < 0.001 ~ "< 0.001",
+      p.value < 0.01  ~ "< 0.01",
+      p.value < 0.05  ~ "< 0.05",
+      TRUE ~ sprintf("%.3f", p.value)
+    )
+  ) %>%
+  dplyr::select(term, estimate, std.error, statistic, p.value, p.value_fmt)
+
+
+tidy_model <- broom.mixed::tidy(model, effects = "fixed") %>%
+  mutate(
+    p.value_fmt = case_when(
+      p.value < 0.001 ~ "< 0.001",
+      p.value < 0.01  ~ "< 0.01",
+      p.value < 0.05  ~ "< 0.05",
+      TRUE ~ sprintf("%.3f", p.value)
+    )
+  ) %>%
+  dplyr::select(term, estimate, std.error, statistic, p.value, p.value_fmt)
+
+print(tidy_model)
+```
+
+The regression analysis reveals that both programmatic and parochial rhetoric are significantly associated with lower levels of positive engagement on Facebook. Specifically, the use of programmatic language is linked to a statistically significant decline in engagement (*β*=-0.06, *p\<*0.001), while parochial language shows a stronger negative association (β=-0.25, *p*\<0.001). These results suggest that posts emphasizing legislative or constituency-oriented content tend to receive less positive engagement from users compared to those that do not.
+
+```{r}
+# Summary table of politicians per group
+group_distribution <- df_fb_regression %>%
+  # Define ideological blocks for a clearer bird's-eye view
+  mutate(ideology_block = case_when(
+    ideology_z > 0.5  ~ "Right-leaning",
+    ideology_z < -0.5 ~ "Left-leaning",
+    TRUE              ~ "Center"
+  )) %>%
+  group_by(ProGov, ideology_block) %>%
+  summarise(
+    n_politicians = n_distinct(page_name),
+    total_posts = n(),
+    avg_posts_per_pol = round(n() / n_distinct(page_name), 1),
+    .groups = "drop"
+  )
+
+print(group_distribution)
+```
+
+#### Instagram & X
+
+```{r}
+post_counts_insta <- df_insta %>%
+  group_by(author) %>%
+  summarise(num_posts = n(), .groups = "drop")
+
+ggplot(post_counts_insta, aes(x = num_posts)) +
+  geom_histogram(bins = 40) +
+  labs(
+    title = "Distribution of Posting Activity per Politician",
+    x = "Number of Posts",
+    y = "Number of Politicians"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+df_insta_regression <- df_insta %>%
+  left_join(post_counts_insta, by = "author") %>%
+  mutate(num_posts_z = as.numeric(scale(num_posts)))
+```
+
+Second, checking for the distribution of the dependent variable:
+
+```{r}
+ggplot(df_insta_regression, aes(x = log1p(engagement))) +
+  geom_histogram(bins = 50) +
+  labs(
+    title = "Distribution of Logged Engagement",
+    x = "log(1 + )",
+    y = "Number of posts"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+df_insta_regression %>%
+  summarise(
+    na_programmatic   = sum(is.na(programmatic_matches)),
+    na_parochial      = sum(is.na(parochial_matches)),
+    na_page_followers = sum(is.na(num_posts_z))
+  )
+```
+
+```{r}
+df_insta_regression <- df_insta_regression %>%
+  mutate(
+    programmatic_matches = tidyr::replace_na(programmatic_matches, 0),
+    parochial_matches    = tidyr::replace_na(parochial_matches, 0)
+  )
+
+df_insta_regression <- df_insta_regression %>%
+  mutate(
+    ideology_z = as.numeric(scale(ideology_2021)),
+    ProGov = factor(
+      ProGov,
+      levels = c(-1, 1),
+      labels = c("Opposition", "Government base")
+    ),
+    congressional_content = case_when(
+      programmatic_matches > 0 & parochial_matches > 0 &
+        programmatic_matches == parochial_matches ~ "tie",
+      programmatic_matches > 0 &
+        programmatic_matches > parochial_matches ~ "programmatic",
+      parochial_matches > 0 &
+        parochial_matches > programmatic_matches ~ "parochial",
+      programmatic_matches == 0 & parochial_matches == 0 ~ "other"
+    ),
+    congressional_content = factor(
+      congressional_content,
+      levels = c("other", "programmatic", "parochial", "tie")
+    )
+  )
+
+df_insta_regression <- df_insta_regression %>%
+  mutate(
+    political_bloc = case_when(
+      ProGov == "Opposition" ~ "Left_Opposition",
+      ProGov == "Government base" & ideology_z > 0.5  ~ "Right_Government",
+      ProGov == "Government base" & ideology_z <= 0.5 ~ "Center_Government"
+    ),
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Center_Government", "Left_Opposition", "Right_Government")
+    )
+  )
+
+df_insta_regression %>%
+  group_by(political_bloc) %>%
+  summarise(
+    n_politicians = n_distinct(author),
+    .groups = "drop"
+  )
+
+df_insta_regression <- df_insta_regression %>%
+  mutate(month = format(timestamp, "%Y-%m"))
+```
+
+```{r}
+model_insta <- fenegbin(
+  engagement ~
+    congressional_content +
+    political_bloc +    # ideological grouping
+    num_posts_z +
+    type +              # content type (image/video)
+    has_tags +
+    has_hashtags |
+    month,              # time FE
+  cluster = ~author,
+  data = df_insta_regression %>%
+    filter(congressional_content != "tie") %>%
+    droplevels()
+)
+
+summary(model_insta)
+```
+
+```{r}
+tidy_model_insta <- broom.mixed::tidy(
+  model_insta,
+)
+
+tidy_model_insta$p.value_fmt <- dplyr::case_when(
+  tidy_model_insta$p.value < 0.001 ~ "< 0.001",
+  tidy_model_insta$p.value < 0.01  ~ "< 0.01",
+  tidy_model_insta$p.value < 0.05  ~ "< 0.05",
+  TRUE ~ sprintf("%.3f", tidy_model_insta$p.value)
+)
+```
+
+The regression analysis for Instagram indicates that, even after accounting for post format and tagging features, both programmatic and parochial content are significantly associated with lower levels of engagement relative to posts without congressional content. Programmatic posts are associated with a substantial reduction in engagement (β = −0.51, p \< 0.001), while parochial posts exhibit an even stronger negative association (β = −1.12, p \< 0.001). These patterns remain robust when controlling for whether posts include tags, hashtags, or appear as pictures or videos.
+
+```{r}
+post_counts_X <- df_X %>%
+  count(author, name = "num_posts")
+
+ggplot(post_counts_X, aes(x = num_posts)) +
+  geom_histogram(bins = 40) +
+  labs(
+    title = "Distribution of Posting Activity per Politician",
+    x = "Number of Posts",
+    y = "Number of Politicians"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+df_X_regression <- df_X %>%
+  left_join(post_counts_X, by = "author") %>%
+  mutate(
+    num_posts_z         = as.numeric(scale(num_posts)),
+    ideology_z          = as.numeric(scale(ideology_2021)),
+    author_followers_z  = as.numeric(scale(author_followers)),
+    ProGov = factor(
+      ProGov,
+      levels = c(-1, 1),
+      labels = c("Opposition", "Government base")
+    ),
+    political_bloc = case_when(
+      ProGov == "Opposition" ~ "Left_Opposition",
+      ProGov == "Government base" & ideology_z > 0.5  ~ "Right_Government",
+      ProGov == "Government base" & ideology_z <= 0.5 ~ "Center_Government"
+    ),
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Center_Government", "Left_Opposition", "Right_Government")
+    ),
+    month = format(timestamp, "%Y-%m"),
+    congressional_content = case_when(
+      programmatic_matches > 0 & parochial_matches > 0 &
+        programmatic_matches == parochial_matches ~ "tie",
+      programmatic_matches > 0 &
+        programmatic_matches > parochial_matches ~ "programmatic",
+      parochial_matches > 0 &
+        parochial_matches > programmatic_matches ~ "parochial",
+      programmatic_matches == 0 & parochial_matches == 0 ~ "other"
+    ),
+    congressional_content = factor(
+      congressional_content,
+      levels = c("other", "programmatic", "parochial", "tie")
+    )
+  )
+```
+
+Second, checking for the distribution of the dependent variable:
+
+```{r}
+ggplot(df_X_regression, aes(x = log1p(engagement))) +
+  geom_histogram(bins = 50) +
+  labs(
+    title = "Distribution of Logged Engagement",
+    x = "log(1 + )",
+    y = "Number of posts"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+df_X_regression %>%
+  summarise(
+    na_followers_z     = sum(is.na(author_followers_z)),
+    na_posts_z         = sum(is.na(num_posts_z)),
+    na_ideology_z      = sum(is.na(ideology_z)),
+    na_ProGov          = sum(is.na(ProGov)),
+    na_bloc            = sum(is.na(political_bloc)),
+    na_tags            = sum(is.na(has_tags)),
+    na_image           = sum(is.na(has_image)),
+    na_video           = sum(is.na(has_video)),
+    na_hashtags        = sum(is.na(has_hashtags)),
+    na_month           = sum(is.na(month))
+  )
+```
+
+```{r}
+df_X_regression %>%
+  filter(is.na(ProGov)) %>%
+  summarise(
+    n_accounts = n_distinct(author),
+    n_posts = n()
+  )
+
+# df_X_regression %>%
+#   filter(is.na(ProGov) | is.na(ideology_z)) %>%
+#   group_by(author) %>%
+#   summarise(
+#     missing_ProGov = any(is.na(ProGov)),
+#     missing_ideology = any(is.na(ideology_z)),
+#     posts = n(),
+#     .groups = "drop"
+#   ) %>%
+#   arrange(desc(posts))
+```
+
+```{r}
+model_X <- fenegbin(
+  engagement ~
+    congressional_content +
+    author_followers_z +
+    num_posts_z +
+    political_bloc +
+    has_tags + has_image + has_video + has_hashtags |
+    month,
+  cluster = ~author,
+  data = df_X_regression %>%
+    filter(congressional_content != "tie") %>%
+    droplevels()
+)
+
+summary(model_X)
+```
+
+```{r}
+tidy_model_X <- broom.mixed::tidy(model_X) 
+
+tidy_model_X$p.value_fmt <- dplyr::case_when(
+  tidy_model_X$p.value < 0.001 ~ "< 0.001",
+  tidy_model_X$p.value < 0.01  ~ "< 0.01",
+  tidy_model_X$p.value < 0.05  ~ "< 0.05",
+  TRUE ~ sprintf("%.3f", tidy_model_X$p.value)
+)
+```
+
+The regression analysis for X shows a more differentiated pattern. After controlling for account characteristics, tagging, and multimedia features, programmatic content is not significantly associated with engagement (β = 0.04, p = 0.42), indicating no meaningful difference relative to posts without congressional content. In contrast, parochial posts are significantly associated with lower engagement (β = −0.34, p \< 0.001). These findings suggest that, on X, constituency-oriented communication tends to underperform relative to non-congressional content, while programmatic appeals do not exhibit a clear relationship with engagement.
+
+It is important to note, however, that the regression model's control for account followership is based on a snapshot of the number of followers collected at a single point in time (when I collected the data). This static measure may not accurately reflect the dynamic nature of followership over the study period, potentially introducing measurement error. As such, the influence of account popularity on engagement outcomes may be either over- or underestimated, and caution is warranted when interpreting the effects of followership within this analysis.
+
+### Party Analysis
+
+```{r}
+bloc_colors <- c(
+  "Center" = "#999999",
+  "Left" = "#CC6666",
+  "Right" = "#3366CC"
+)
+
+plot_parochial <- df_fb_regression %>%
+  group_by(party, political_bloc) %>%
+  summarise(
+    ideology_2021 = first(ideology_2021),
+    total_posts = n(),
+    posts_with_parochial = sum(parochial_matches > 0, na.rm = TRUE),
+    prop_parochial = posts_with_parochial / total_posts,
+    .groups = "drop"
+  ) %>%
+  filter(
+    !is.na(political_bloc),
+    !is.na(ideology_2021),
+    !party %in% c("PB", "PR")
+  ) %>%
+  mutate(
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Left_Opposition", "Center_Government", "Right_Government"),
+      labels = c("Left", "Center", "Right")
+    )
+  ) %>%
+  arrange(political_bloc, ideology_2021) %>%
+  mutate(
+    party = factor(party, levels = unique(party))
+  )
+
+ggplot(plot_parochial, aes(x = party, y = prop_parochial, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Parochial Posts by Political Party",
+    subtitle = "Posts containing at least one parochial match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+
+```{r}
+# Save the plot as an image
+ggsave(
+  filename = "Parochial content by party.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+plot_parochial %>%
+  group_by(political_bloc) %>%
+  summarise(
+    total_posts = sum(total_posts, na.rm = TRUE),
+    posts_with_parochial = sum(posts_with_parochial, na.rm = TRUE),
+    prop_parochial = posts_with_parochial / total_posts,
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = political_bloc, y = prop_parochial, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Parochial Posts by Political Bloc",
+    subtitle = "Posts containing at least one parochial match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  )
+```
+```{r}
+# Save the plot as an image
+ggsave(
+  filename = "Parochial content by bloc.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+plot_programmatic <- df_fb_regression %>%
+  group_by(party, political_bloc) %>%
+  summarise(
+    ideology_2021 = first(ideology_2021),
+    total_posts = n(),
+    posts_with_programmatic = sum(programmatic_matches > 0, na.rm = TRUE),
+    prop_programmatic = posts_with_programmatic / total_posts,
+    .groups = "drop"
+  ) %>%
+  filter(
+    !is.na(political_bloc),
+    !is.na(ideology_2021),
+    !party %in% c("PB", "PR")
+  ) %>%
+  mutate(
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Left_Opposition", "Center_Government", "Right_Government"),
+      labels = c("Left", "Center", "Right")
+    )
+  ) %>%
+  arrange(political_bloc, ideology_2021) %>%
+  mutate(
+    party = factor(party, levels = unique(party))
+  )
+
+ggplot(plot_programmatic, aes(x = party, y = prop_programmatic, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Programmatic Posts by Political Party",
+    subtitle = "Posts containing at least one programmatic match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+```{r}
+# Save the plot as an image
+ggsave(
+  filename = "Programmatic content by party.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+plot_programmatic %>%
+  group_by(political_bloc) %>%
+  summarise(
+    total_posts = sum(total_posts, na.rm = TRUE),
+    posts_with_programmatic = sum(posts_with_programmatic, na.rm = TRUE),
+    prop_programmatic = posts_with_programmatic / total_posts,
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(x = political_bloc, y = prop_programmatic, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Programmatic Posts by Political Bloc",
+    subtitle = "Posts containing at least one programmatic match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  )
+```
+```{r}
+# Save the plot as an image
+ggsave(
+  filename = "Programmatic content by Bloc.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+# [SECT2] Antagonistic content
+
+[**LACRAÇÃO**] **indignant, aggressive statements voicing political discord:** \`
+
+### Temporal trends
+
+```{r}
+# Monthly aggregation for Facebook
+df_fb_monthly <- df_fb %>%
+  mutate(period = floor_date(timestamp, unit = "month")) %>%
+  group_by(period) %>%
+  summarise(
+    prop_negative = mean(compound_sentiment < 0, na.rm = TRUE),
+    mean_sentiment = mean(compound_sentiment, na.rm = TRUE),
+    prop_lacracao = mean(lacracao_matches > 0, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(period) %>%
+  mutate(time = row_number(),
+         time_c = time - mean(time, na.rm = TRUE))
+
+
+df_fb_monthly %>%
+  summarise(
+    min_prop_lacracao   = min(prop_lacracao, na.rm = TRUE),
+    max_prop_lacracao   = max(prop_lacracao, na.rm = TRUE),
+    mean_prop_lacracao  = mean(prop_lacracao, na.rm = TRUE),
+    sd_prop_lacracao    = sd(prop_lacracao, na.rm = TRUE),
+    min_prop_negative   = min(prop_negative, na.rm = TRUE),
+    max_prop_negative   = max(prop_negative, na.rm = TRUE),
+    mean_prop_negative  = mean(prop_negative, na.rm = TRUE),
+    sd_prop_negative    = sd(prop_negative, na.rm = TRUE),
+    min_mean_sentiment  = min(mean_sentiment, na.rm = TRUE),
+    max_mean_sentiment  = max(mean_sentiment, na.rm = TRUE),
+    mean_mean_sentiment = mean(mean_sentiment, na.rm = TRUE),
+    sd_mean_sentiment   = sd(mean_sentiment, na.rm = TRUE)
+  )
+```
+
+```{r}
+ggplot(df_fb_monthly, aes(x = period, y = prop_lacracao)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = NULL,
+    y = "Proportion of posts with lacração matches",
+    title = "Facebook: evolution in lacração matches over time"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+ theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+ )
+
+ggplot(df_fb_monthly, aes(x = period, y = prop_negative)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = NULL,
+    y = "Proportion of negative posts",
+    title = "Facebook: evolution in the frequency of negative posts over time"
+  ) +
+  theme_minimal(base_family = "EB Garamond") 
+
+ggplot(df_fb_monthly, aes(x = period, y = mean_sentiment)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = NULL,
+    y = "Mean compound sentiment",
+    title = "Facebook: evolution in overall sentiment over time"
+  ) +
+  theme_minimal(base_family = "EB Garamond") 
+```
+
+Visual inspection suggests short-term fluctuations—particularly around early 2020—that are not fully captured by linear trends.
+
+```{r}
+df_fb_monthly %>%
+  arrange(desc(prop_lacracao)) %>%
+  dplyr::select(period, prop_lacracao) %>%
+  slice_head(n = 10)
+# "2019-11-01", "2019-12-01", "2020-01-01", "2020-02-01", "2020-06-01", "2021-09-01"	
+
+peaks <- df_fb %>%
+  mutate(period = lubridate::floor_date(timestamp, unit = "month")) %>%
+  filter(period %in% as.Date(c("2019-11-01", "2019-12-01"))) %>%
+  filter(lacracao_matches > 1) %>%
+  dplyr::select(period, timestamp, author, text_combined, lacracao_matches) %>%
+  arrange(period, desc(timestamp))
+write.csv(peaks, "peaks (2019).csv")
+# The antagonistic language is embedded in discussions of events, not independent of them. Antagonistic language spikes are tightly coupled to short-lived, high-salience political controversies involving elite actors.
+# [2019] Lula’s release (Nov 8, 2019)
+# [JAN 2020] Roberto Alvim scandal
+# [FEB 2020] Economy Minister Paulo Guedes calling public servants “parasites”
+# [2021] The peaks observed in 2021 are closely associated with the COVID-19 parliamentary inquiry (CPI) + pandemic management
+```
+
+
+```{r}
+summary(
+  lm(prop_lacracao ~ time_c, data = df_fb_monthly))
+confint(
+  lm(prop_lacracao ~ time_c, data = df_fb_monthly))
+```
+
+```{r}
+# Frequency of negativity (proportion)
+summary(
+  lm(prop_negative ~ time_c, data = df_fb_monthly))
+confint(
+  lm(prop_negative ~ time_c, data = df_fb_monthly))
+
+# Overall tone (continuous sentiment)
+summary(
+  lm(mean_sentiment ~ time_c, data = df_fb_monthly))
+confint(
+  lm(mean_sentiment ~ time_c, data = df_fb_monthly))
+```
+
+*Results:* At the midpoint of the period, approximately 36.1% of Facebook posts are negative (intercept). However, there is no evidence of a temporal trend in the frequency of negativity: the estimated slope is small and not statistically significant (β = −0.00030, 95% CI [−0.00154, 0.00093], p = .621). This suggests that the share of posts containing negative sentiment remains stable over time. The average compound sentiment at the midpoint is positive (β = 0.135), indicating that posts are, on average, more positive than negative. Although the estimated slope is positive—suggesting a slight shift toward more positive tone over time—this trend is also not statistically significant (β = 0.00127, 95% CI [−0.00057, 0.00311], p = .170). Taken together, these results indicate no meaningful temporal change in either the prevalence or the overall tone of negative content on Facebook.
+
+#### Instagram & X
+
+```{r}
+# Monthly aggregation for Instagram
+df_insta_monthly <- df_insta %>%
+  mutate(period = floor_date(timestamp, unit = "month")) %>%
+  group_by(period) %>%
+  summarise(
+    prop_negative = mean(compound_sentiment < 0, na.rm = TRUE),
+    mean_sentiment = mean(compound_sentiment, na.rm = TRUE),
+    prop_lacracao = mean(lacracao_matches > 0, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(period) %>%
+  mutate(time = row_number(),
+         time_c = time - mean(time, na.rm = TRUE))
+
+
+# Monthly aggregation for X
+df_X_monthly <- df_X %>%
+  mutate(period = floor_date(timestamp, unit = "month")) %>%
+  group_by(period) %>%
+  summarise(
+    prop_negative = mean(compound_sentiment < 0, na.rm = TRUE),
+    mean_sentiment = mean(compound_sentiment, na.rm = TRUE),
+    prop_lacracao = mean(lacracao_matches > 0, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(period) %>%
+  mutate(time = row_number(),
+         time_c = time - mean(time, na.rm = TRUE))
+```
+
+```{r}
+# Proportion lacração posts
+  #Instagram
+summary(
+  lm(prop_lacracao ~ time_c,  data = df_insta_monthly))
+confint(
+  lm(prop_lacracao ~ time_c,  data = df_insta_monthly))
+  #X
+summary(
+  lm(prop_lacracao ~ time_c,  data = df_X_monthly))
+confint(
+  lm(prop_lacracao ~ time_c,  data = df_X_monthly))
+
+# Frequency of negativity (proportion)
+  #Instagram
+summary(
+  lm(prop_negative ~ time_c, data = df_insta_monthly))
+confint(
+  lm(prop_negative ~ time_c, data = df_insta_monthly))
+  #X
+summary(
+  lm(prop_negative ~ time_c, data = df_X_monthly))
+confint(
+  lm(prop_negative ~ time_c, data = df_X_monthly))
+
+
+# Overall tone (continuous sentiment)
+  #Instagram
+summary(
+  lm(mean_sentiment ~ time_c, data = df_insta_monthly))
+confint(
+  lm(mean_sentiment ~ time_c, data = df_insta_monthly))
+  #X
+summary(
+  lm(mean_sentiment ~ time_c, data = df_X_monthly))
+confint(
+  lm(mean_sentiment ~ time_c, data = df_X_monthly))
+```
+
+The regression analyses do not reveal a clear tendency toward more negative or antagonistic communication. On Facebook, neither the prevalence of negative posts nor overall sentiment exhibits a significant trend over time. On Instagram, although I observe statistically significant increases in the proportion of posts with antagonistic matches and in the frequency of negative posts, as well as a decline in overall sentiment, these effects are modest in magnitude and unfold unevenly over the period examined. On X, the evidence is more mixed: while the proportion of negative posts shows a small but statistically significant increase, trends in antagonism and overall sentiment do not consistently reach high levels of statistical significance.These results do not point to a systematic shift toward greater negativity or antagonistic communication across platforms. Rather, temporal dynamics appear to be modest, platform-specific, and marked by short-term fluctuations rather than sustained directional change.
+
+Obs: - The intercept is the expected value of the outcome at the midpoint of the time series (e.g., at the midpoint of the period, approximately 3.26% of tweets contained lacração)
+
+##### Export
+
+```{r}
+# openxlsx::write.xlsx(
+#   list(
+#     fb_prop_lacracao = broom::tidy(lm(prop_lacracao ~ time_c, data = df_fb_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     fb_prop_negative = broom::tidy(lm(prop_negative ~ time_c, data = df_fb_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     fb_mean_sentiment = broom::tidy(lm(mean_sentiment ~ time_c, data = df_fb_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     insta_prop_lacracao = broom::tidy(lm(prop_lacracao ~ time_c, data = df_insta_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     insta_prop_negative = broom::tidy(lm(prop_negative ~ time_c, data = df_insta_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     insta_mean_sentiment = broom::tidy(lm(mean_sentiment ~ time_c, data = df_insta_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     x_prop_lacracao = broom::tidy(lm(prop_lacracao ~ time_c, data = df_X_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     x_prop_negative = broom::tidy(lm(prop_negative ~ time_c, data = df_X_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value), sig = sig_stars(p.value)),
+#     
+#     x_mean_sentiment = broom::tidy(lm(mean_sentiment ~ time_c, data = df_X_monthly)) %>%
+#       dplyr::mutate(p_value_apa = format_p_apa(p.value),sig = sig_stars(p.value))
+#   ),
+#   file = here::here("..", "_output", "time_trend_results.xlsx"),overwrite = TRUE)
+```
+
+### Engagement
+
+Again, because of the long-tail distribution of the dependent variable, I am employing a poison regression. Moreover, given that the scales of my predictors are very different, I decided to z-transform my independent variables.
+
+```{r}
+df_fb_regression <- df_fb_regression %>%
+  mutate(
+    lacracao_matches_z = as.numeric(scale(lacracao_matches)))
+```
+
+```{r}
+model_lac <- fenegbin(
+  engagement ~ lacracao_matches_z + negative_intensity +
+    page_followers_z + num_posts_z + # Account controls
+    political_bloc + # Partisan controls 
+    post_format + has_hashtags |     # Content controls
+    month,                           # Fixed Effect for Time
+  cluster = ~page_name,              # Clustered SE 
+  data = df_fb_regression
+)
+
+summary(model_lac)
+```
+
+```{r}
+# Interaction prediction: How lacracao effects differ by bloc
+eff_lac <- predict_response(model_lac, terms = "political_bloc", margin = "marginalmeans")
+
+# 2. Plotting (Mirroring the previous style exactly)
+font_add_google("EB Garamond", "EB Garamond")
+showtext_auto()
+
+ggplot(eff_lac, aes(x = x, y = predicted, color = x)) +
+  geom_point(size = 4) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, size = 1) +
+  scale_color_manual(values = c(
+    "Center_Government" = "steelblue", 
+    "Left_Opposition" = "darkred", 
+    "Right_Government" = "darkblue"
+  )) +
+  # Adding the N-counts on the axis for transparency
+  scale_x_discrete(labels = c(
+    "Center_Government" = "Center_Government\n(n=82)",
+    "Left_Opposition" = "Left_Opposition\n(n=119)",
+    "Right_Government" = "Right_Government\n(n=279)"
+  )) +
+  labs(
+    title = "Predicted Engagement by Political Bloc (Lacração Model)",
+    x = "Political Bloc",
+    y = "Predicted Engagement (Post-level)",
+    caption = "Note: Error bars represent 95% Confidence Intervals. Reference for post format is Image."
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    legend.position = "none",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 30, face = "bold")
+  )
+```
+
+```{r}
+tidy_model2 <- tidy(model_lac) 
+tidy_model2$p.value <- ifelse(tidy_model2$p.value < 0.001, "< 0.001", 
+                             ifelse(tidy_model2$p.value < 0.01, "< 0.01", 
+                                    format(tidy_model2$p.value, digits = 3)))
+tidy_model2
+```
+
+**Key finding:** The model reveals that 'lacração' matches are a significant positive predictor of engagement (β = 0.09, p \< .001).
+
+##### Instagram & Twitter
+
+```{r}
+df_insta_regression <- df_insta_regression %>%
+  mutate(
+    lacracao_matches = tidyr::replace_na(lacracao_matches, 0)
+  )
+
+df_insta_regression <- df_insta_regression %>%
+  mutate(
+    lacracao_matches_z = as.numeric(scale(lacracao_matches)))
+df_X_regression <- df_X_regression %>%
+  mutate(
+    lacracao_matches_z = as.numeric(scale(lacracao_matches)))
+```
+
+```{r}
+model_lac_insta <- fenegbin(
+  engagement ~
+    lacracao_matches_z + negative_intensity +
+    ideology_2021 + political_bloc + # ideological grouping
+    type + has_tags + has_hashtags |  # content type (image/video)
+    month,                     # time FE
+  cluster = ~author,
+  data = df_insta_regression,
+  data.save = TRUE
+)
+
+model_lac_X <- fenegbin(
+  engagement ~
+    lacracao_matches_z + negative_intensity +
+    author_followers_z +      # profile control
+    num_posts_z +             # posting activity
+    ideology_2021 + political_bloc + # ideological grouping
+    has_tags + has_image + has_video + has_hashtags |
+    month,                    # time FE
+  cluster = ~author,
+  data = df_X_regression,
+  data.save = TRUE
+)
+
+summary(model_lac_insta)
+summary(model_lac_X)
+```
+
+```{r}
+tidy_model2_insta <- tidy(model_lac_insta) 
+tidy_model2_insta$p.value <- ifelse(tidy_model2_insta$p.value < 0.001, "< 0.001", 
+                             ifelse(tidy_model2_insta$p.value < 0.01, "< 0.01", 
+                                    format(tidy_model2_insta$p.value, digits = 3)))
+
+tidy_model2_X <- tidy(model_lac_X) 
+tidy_model2_X$p.value <- ifelse(tidy_model2_X$p.value < 0.001, "< 0.001", 
+                             ifelse(tidy_model2_X$p.value < 0.01, "< 0.01", 
+                                    format(tidy_model2_X$p.value, digits = 3)))
+
+tidy_model2_insta
+tidy_model2_X
+```
+
+*Summary:* Across all three platforms, both the intensity of antagonistic rhetoric and negative sentiment are positively and significantly associated with engagement. On Facebook, a one standard deviation increase in antagonistic content is associated with higher engagement (β = 0.095, p \< 0.001), and negative sentiment exhibits a similarly strong positive relationship (β = 0.341, p \< 0.001). Comparable patterns emerge on Instagram, where both antagonistic content (β = 0.083, p \< 0.001) and negative sentiment (β = 0.312, p \< 0.001) are significantly associated with increased engagement. On X, these effects are even more pronounced: antagonistic content is positively associated with engagement (β = 0.115, p \< 0.001), while negative sentiment shows a particularly strong relationship (β = 0.740, p \< 0.001).
+
+######Predictions
+
+```{r}
+#Facebook
+predictions(
+  model_lac,
+  newdata = datagrid(
+    lacracao_matches_z = c(-1, 1),
+    negative_intensity = c(0, 1),
+    page_followers_z = 0,
+    num_posts_z = 0,
+    political_bloc = "Center_Government",
+    post_format = "Image",
+    has_hashtags = "0",
+    month = "2020-04"
+  ),
+  vcov = FALSE
+)
+```
+
+```{r}
+#Instagram
+predictions(
+  model_lac_insta,
+  newdata = df_insta_regression %>% 
+    dplyr::filter(
+      political_bloc == "Center_Government",
+      type == "picture",
+      has_tags == 0,
+      has_hashtags == 0,
+      month == "2020-04"
+    ) |>
+    dplyr::slice(1)  %>% 
+    dplyr::slice(rep(1, 3))  %>% 
+    dplyr::mutate(
+      lacracao_matches_z = c(-1, 0, 1),
+      negative_intensity = 0
+    ),
+  vcov = FALSE
+)
+```
+
+To facilitate substantive interpretation, I computed predicted levels of engagement for posts with low, average, and high levels of antagonistic content, holding all other covariates constant at typical values. On Instagram, a post one standard deviation below the mean in antagonistic content is expected to receive approximately 2,252 units of engagement, compared to 2,447 at the mean and 2,659 one standard deviation above the mean. This indicates that increases in antagonistic content are associated with higher levels of engagement, even after accounting for negative sentiment and other post characteristics
+
+```{r}
+#X
+predictions(
+  model_lac_X,
+  newdata = data.frame(
+    lacracao_matches_z = c(-1, 0, 1),
+    negative_intensity = c(0, 0, 0),
+    author_followers_z = c(0, 0, 0),
+    num_posts_z = c(0, 0, 0),
+    political_bloc = factor(
+      c("Center_Government", "Center_Government", "Center_Government"),
+      levels = levels(df_X_regression$political_bloc)
+    ),
+    has_tags = c(0, 0, 0),
+    has_image = c(0, 0, 0),
+    has_video = c(0, 0, 0),
+    has_hashtags = c(0, 0, 0),
+    month = c("2020-04", "2020-04", "2020-04")
+  ),
+  vcov = FALSE
+)
+```
+
+For X, the predictions indicate that, holding the other covariates constant at typical values, a post with antagonistic content one standard deviation below the mean is expected to receive about 88.9 units of engagement, compared to 99.7 at the mean and 111.9 one standard deviation above the mean.
+
+
+### Party Analysis
+
+```{r}
+df_lacracao_by_party <- df_fb_regression %>%
+  group_by(party, political_bloc) %>%
+  summarise(
+    ideology_2021 = first(ideology_2021),
+    total_posts = n(),
+    
+    posts_with_lacracao = sum(lacracao_matches > 0, na.rm = TRUE),
+    prop_lacracao = posts_with_lacracao / total_posts,
+    
+    posts_negative = sum(compound_sentiment < 0, na.rm = TRUE),
+    prop_negative = posts_negative / total_posts,
+    
+    .groups = "drop"
+  ) %>%
+  filter(
+    !is.na(political_bloc),
+    !is.na(ideology_2021),
+    !party %in% c("PB", "PR")
+  ) %>%
+  mutate(
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Left_Opposition", "Center_Government", "Right_Government"),
+      labels = c("Left", "Center", "Right")
+    )
+  ) %>%
+  arrange(political_bloc, ideology_2021) %>%
+  mutate(
+    party = factor(party, levels = unique(party))
+  )
+```
+
+Proportion of lacração posts: *3.8%* among the leftist parties; *2.6%* among right wing parties, and *1.8%* in the centrist parties.
+
+```{r}
+# Plot
+ggplot(df_lacracao_by_party, aes(x = party, y = prop_lacracao, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Antagonistic Posts (Lacração) by Political Party",
+    subtitle = "Posts containing at least one lacração match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+*Figure.* Proportion of “lacração” posts by political party, positioned along the ideological spectrum.
+
+```{r}
+# Save the plot 
+ggsave(
+  filename = "Proportion_Lacracao_Party.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+df_fb_regression %>%
+  group_by(political_bloc) %>%
+  summarise(
+    total_posts = n(),
+    posts_with_lacracao = sum(lacracao_matches > 0, na.rm = TRUE),
+    prop_lacracao = posts_with_lacracao / total_posts,
+    .groups = "drop"
+  ) %>%
+  filter(!is.na(political_bloc)) %>%
+  mutate(
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Left_Opposition", "Center_Government", "Right_Government"),
+      labels = c("Left", "Center", "Right")
+    )
+  ) %>%
+  ggplot(aes(x = political_bloc, y = prop_lacracao, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(
+    limits = c(0, 0.06),
+    labels = scales::percent_format(accuracy = 1)
+  ) +
+  labs(
+    title = "Proportion of Antagonistic Posts (Lacração) by Political Bloc",
+    subtitle = "Posts containing at least one lacração match on Facebook",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+```{r}
+# Save
+ggsave(
+  filename = "Proportion_Lacracao_Bloc.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+ggplot(df_lacracao_by_party, aes(x = party, y = prop_negative, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Negative Posts by Political Party",
+    subtitle = "Facebook posts with compound sentiment below zero",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1, size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+```{r}
+# Save
+ggsave(
+  filename = "Proportion_Negative_Party.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+```{r}
+df_fb_regression %>%
+  group_by(political_bloc) %>%
+  summarise(
+    total_posts = n(),
+    posts_negative = sum(compound_sentiment < 0, na.rm = TRUE),
+    prop_negative = posts_negative / total_posts,
+    .groups = "drop"
+  ) %>%
+  filter(!is.na(political_bloc)) %>%
+  mutate(
+    political_bloc = factor(
+      political_bloc,
+      levels = c("Left_Opposition", "Center_Government", "Right_Government"),
+      labels = c("Left", "Center", "Right")
+    )
+  ) %>%
+  ggplot(aes(x = political_bloc, y = prop_negative, fill = political_bloc)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = bloc_colors) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(
+    title = "Proportion of Negative Posts by Political Bloc",
+    subtitle = "Facebook posts with compound sentiment below zero",
+    x = NULL,
+    y = NULL,
+    fill = "Ideological Bloc"
+  ) +
+  theme_minimal(base_family = "EB Garamond") +
+  theme(
+    axis.text.x = element_text(size = 30),
+    axis.text.y = element_text(size = 30),
+    plot.title = element_text(size = 40, face = "bold"),
+    plot.subtitle = element_text(size = 35),
+    legend.position = "top",
+    legend.text = element_text(size = 30),
+    legend.title = element_text(size = 30, face = "bold"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.border = element_blank(),
+    axis.line = element_line(color = "black", linewidth = 0.1)
+  ) +
+  guides(fill = guide_legend(title.position = "top", title.hjust = 0.5))
+```
+```{r}
+# Save
+ggsave(
+  filename = "Proportion_Negative_Bloc.png",  
+  plot = last_plot(),                 
+  device = "png",                     
+  width = 10,                         
+  height = 6,                         
+  dpi = 300                           
+)
+```
+
+
+### Transition Analysis
+*What is the typical pattern within a politician' content production (i.e., averaging those patterns across politicians)?*
+
+These results suggest that antagonistic posts may displace congressional communications in short term periods.
+
+```{r}
+#Create binary variables
+df_fb_regression <- df_fb_regression %>%
+  mutate(
+   # Lacração
+   lacracao_cat = factor(if_else(lacracao_matches >= 1, "lacracao", "no_lacracao"), levels = c("no_lacracao", "lacracao")),
+   # Negativity
+    negative_post_cat = if_else(negative_intensity > 0, 1L, 0L),
+   # Congressional content
+    congressional_cat = if_else(programmatic_matches >= 1 | parochial_matches >= 1, 1L, 0L)
+  ) %>%
+  #Low and High Engagement categorization
+  group_by(author) %>%
+  mutate(
+    low_thresh  = quantile(engagement, 0.20, na.rm = TRUE),
+    high_thresh = quantile(engagement, 0.80, na.rm = TRUE),
+
+    focal_low_engagement  = engagement <= low_thresh,
+    focal_high_engagement = engagement >= high_thresh
+  ) %>%
+  ungroup() %>%
+  dplyr::select(-low_thresh, -high_thresh)
+```
+
+```{r}
+# Parameter for congressional-content thresholds
+follow_match_threshold <- 1
+
+# -----------------------------------------------
+# Helper function to build transition summaries
+# -----------------------------------------------
+build_transition_summary <- function(data, by_year = TRUE) {
+  
+  df_transitions <- data %>%
+    filter(!is.na(party)) %>%
+    arrange(page_name, timestamp, postID) %>%
+    group_by(page_name) %>%
+    mutate(
+      # Look ahead 1 and 2 posts
+      lead1_parochial    = lead(parochial_matches, 1),
+      lead2_parochial    = lead(parochial_matches, 2),
+      lead1_programmatic = lead(programmatic_matches, 1),
+      lead2_programmatic = lead(programmatic_matches, 2),
+      lead1_lacracao     = lead(lacracao_cat, 1),
+      lead2_lacracao     = lead(lacracao_cat, 2),
+      lead1_negative     = lead(negative_post_cat, 1),
+      lead2_negative     = lead(negative_post_cat, 2),
+      lead2_exists       = !is.na(lead(timestamp, 2))
+    ) %>%
+    ungroup() %>%
+    mutate(
+      year = year(timestamp),
+
+      # ---------------------------------
+      # Follow-up outcomes (next 2 posts)
+      # ---------------------------------
+      parochial_follows = case_when(
+        !lead2_exists ~ NA_real_,
+        (coalesce(lead1_parochial, 0) >= follow_match_threshold) |
+          (coalesce(lead2_parochial, 0) >= follow_match_threshold) ~ 1,
+        TRUE ~ 0
+      ),
+
+      programmatic_follows = case_when(
+        !lead2_exists ~ NA_real_,
+        (coalesce(lead1_programmatic, 0) >= follow_match_threshold) |
+          (coalesce(lead2_programmatic, 0) >= follow_match_threshold) ~ 1,
+        TRUE ~ 0
+      ),
+
+      either_parochial_or_programmatic_follows = case_when(
+        !lead2_exists ~ NA_real_,
+        parochial_follows == 1 | programmatic_follows == 1 ~ 1,
+        TRUE ~ 0
+      ),
+
+      lacracao_follows = case_when(
+        !lead2_exists ~ NA_real_,
+        coalesce(as.character(lead1_lacracao), "no_lacracao") == "lacracao" |
+          coalesce(as.character(lead2_lacracao), "no_lacracao") == "lacracao" ~ 1,
+        TRUE ~ 0
+      ),
+
+      negative_follows = case_when(
+        !lead2_exists ~ NA_real_,
+        coalesce(lead1_negative, 0L) == 1L |
+          coalesce(lead2_negative, 0L) == 1L ~ 1,
+        TRUE ~ 0
+      ),
+
+      # ------------------------
+      # Focal post types
+      # ------------------------
+      focal_parochial = parochial_matches >= follow_match_threshold,
+      focal_programmatic = programmatic_matches >= follow_match_threshold,
+      focal_either_parochial_or_programmatic =
+        focal_parochial | focal_programmatic,
+      focal_lacracao = lacracao_cat == "lacracao",
+      focal_negative = negative_post_cat == 1L
+    ) %>%
+    dplyr::select(page_name, year, parochial_follows, programmatic_follows, either_parochial_or_programmatic_follows, lacracao_follows, negative_follows, focal_parochial, focal_programmatic, focal_either_parochial_or_programmatic, focal_lacracao, focal_negative) %>%
+    pivot_longer(
+      cols = starts_with("focal_"),
+      names_to = "focal_type",
+      values_to = "focal_match"
+    ) %>%
+    pivot_longer(
+      cols = c(
+        parochial_follows,
+        programmatic_follows,
+        either_parochial_or_programmatic_follows,
+        lacracao_follows,
+        negative_follows
+      ),
+      names_to = "follow_type",
+      values_to = "follow_match"
+    )
+
+  # ---------------------------------
+  # Account-level summaries
+  # ---------------------------------
+  account_level <- if (by_year) {
+    df_transitions %>%
+      group_by(page_name, year, focal_type, follow_type) %>%
+      summarise(
+        eligible_posts = sum(!is.na(follow_match)),
+        eligible_focal_posts = sum(focal_match & !is.na(follow_match)),
+        base_prob = mean(follow_match, na.rm = TRUE),
+        conditional_prob = if_else(
+          eligible_focal_posts > 0,
+          mean(follow_match[focal_match], na.rm = TRUE),
+          NA_real_
+        ),
+        .groups = "drop"
+      )
+  } else {
+    df_transitions %>%
+      group_by(page_name, focal_type, follow_type) %>%
+      summarise(
+        eligible_posts = sum(!is.na(follow_match)),
+        eligible_focal_posts = sum(focal_match & !is.na(follow_match)),
+        base_prob = mean(follow_match, na.rm = TRUE),
+        conditional_prob = if_else(
+          eligible_focal_posts > 0,
+          mean(follow_match[focal_match], na.rm = TRUE),
+          NA_real_
+        ),
+        .groups = "drop"
+      ) %>%
+      mutate(year = "Overall")
+  }
+
+  # ---------------------------------
+  # Aggregate across accounts
+  # ---------------------------------
+  account_level %>%
+    group_by(year, focal_type, follow_type) %>%
+    summarise(
+      n_accounts = n(),
+      n_accounts_with_focal_posts = sum(eligible_focal_posts > 0, na.rm = TRUE),
+
+      mean_eligible_posts = mean(eligible_posts, na.rm = TRUE),
+      mean_eligible_focal_posts = mean(eligible_focal_posts, na.rm = TRUE),
+
+      base_prob = mean(base_prob, na.rm = TRUE),
+      conditional_prob = mean(conditional_prob, na.rm = TRUE),
+
+      pp_diff = conditional_prob - base_prob,
+      rr = conditional_prob / base_prob,
+      .groups = "drop"
+    )
+}
+
+# -----------------------------------------------
+# Build yearly + overall summaries
+# -----------------------------------------------
+df_congressional_transitions <- bind_rows(
+  build_transition_summary(df_fb_regression, by_year = TRUE) %>%
+    mutate(year = as.character(year)),
+  build_transition_summary(df_fb_regression, by_year = FALSE)
+) %>%
+  mutate(
+    focal_type = dplyr::recode(
+      focal_type,
+      focal_parochial = "Parochial focal posts",
+      focal_programmatic = "Programmatic focal posts",
+      focal_either_parochial_or_programmatic =
+        "Either parochial or programmatic focal posts",
+      focal_lacracao = "Lacração focal posts",
+      focal_negative = "Negative focal posts"
+    ),
+    follow_type = dplyr::recode(
+      follow_type,
+      parochial_follows = "Followed by parochial",
+      programmatic_follows = "Followed by programmatic",
+      either_parochial_or_programmatic_follows =
+        "Followed by either parochial or programmatic",
+      lacracao_follows = "Followed by lacração",
+      negative_follows = "Followed by negative post"
+    )
+  )
+
+df_congressional_transitions
+```
+
+#### Engagement transitions
+
+```{r}
+df_lagged <- df_fb_regression %>%
+  arrange(author, timestamp) %>%
+  group_by(author) %>%
+  mutate(
+    lag_high = lag(focal_high_engagement),
+    lag_low  = lag(focal_low_engagement)
+  ) %>%
+  ungroup() %>%
+  filter(!is.na(lag_high))
+
+boost_rr <- df_lagged %>%
+  summarise(
+    p_high_given_high = mean(focal_high_engagement[lag_high == TRUE], na.rm = TRUE),
+    p_high_given_not  = mean(focal_high_engagement[lag_high == FALSE], na.rm = TRUE),
+    RR_high = p_high_given_high / p_high_given_not
+  )
+# Results
+print(boost_rr)
+
+# Diagnostic Summary
+df_fb_regression %>%
+  summarise(
+    Total_Posts = n(),
+    High_Engagement_Posts = sum(focal_high_engagement, na.rm = TRUE),
+    Successive_High_Hits = sum(focal_high_engagement == TRUE & 
+    lag(focal_high_engagement) == TRUE, na.rm = TRUE)
+  ) %>%
+  mutate(
+    Success_Rate = High_Engagement_Posts / Total_Posts,
+    Retention_Rate = Successive_High_Hits / High_Engagement_Posts
+  )
+```
+
+Posts that follow a high-engagement post are 79% more likely to also be high-engagement (relative to posts that follow a non-high post). Therefore, when a post performs unusually well relative to an account’s typical engagement, the next post is substantially more likely to also perform unusually well. 
+
+#### Matrix
+```{r}
+# Prepare transitions
+df_matrix <- df_fb_regression %>%
+  arrange(author, timestamp) %>%
+  group_by(author) %>%
+  mutate(
+    # "_past" represents the post that happened before the current row
+    across(c(congressional_cat, lacracao_cat, negative_post_cat), 
+           ~ lag(.x), .names = "{.col}_past"),
+    # "_present" represents the post in the current row
+    congressional_cat_present = congressional_cat,
+    lacracao_cat_present      = lacracao_cat,
+    negative_post_cat_present   = negative_post_cat,
+    
+    # Identify if the PREVIOUS post was also high engagement
+    lag_high = lag(focal_high_engagement)
+  ) %>%
+  ungroup() %>%
+  # 2. Filter for high engaggement sequence
+  filter(focal_high_engagement == TRUE & lag_high == TRUE)
+
+# 3. Create the Matrix
+content_matrix <- df_matrix %>%
+  summarise(
+    # Probabilities for the Past Post
+    Past_Congressional = mean(congressional_cat_past == 1, na.rm = TRUE),
+    Past_Lacracao     = mean(lacracao_cat_past == "lacracao", na.rm = TRUE),
+    Past_Negative      = mean(negative_post_cat_past == 1, na.rm = TRUE),
+    
+    # Probabilities for the Present Post
+    Present_Congressional = mean(congressional_cat_present == 1, na.rm = TRUE),
+    Present_Lacracao     = mean(lacracao_cat_present == "lacracao", na.rm = TRUE),
+    Present_Negative      = mean(negative_post_cat_present == 1, na.rm = TRUE)
+  ) %>%
+  # Pivot into a 3x2 format
+  pivot_longer(everything(), 
+               names_to = c("Time", "Content"), 
+               names_sep = "_",
+               values_to = "Probability") %>%
+  pivot_wider(names_from = Time, values_from = Probability)
+
+# Calculate Baselines (The frequency of content in the entire dataset)
+baselines <- df_fb_regression %>%
+  summarise(
+    Base_Lacracao      = mean(lacracao_cat == "lacracao", na.rm = TRUE),
+    Base_Negative      = mean(negative_post_cat == 1, na.rm = TRUE),
+    Base_Congressional = mean(congressional_cat == 1, na.rm = TRUE)
+  ) %>%
+  pivot_longer(everything(), 
+               names_prefix = "Base_", 
+               names_to = "Content", 
+               values_to = "Baseline_Prob")
+
+# 2. Join with Matrix and calculate Lift
+content_matrix <- content_matrix %>%
+  left_join(baselines, by = "Content") %>%
+  mutate(
+    # How much more likely is this content in a "Present" hit compared to a random post?
+    Lift_Present = Present / Baseline_Prob
+  )
+
+print(content_matrix)
+# remove(baselines)
+```
+
+```{r}
+# 2. Create a long-form transition count
+df_matrix_long <- df_matrix %>%
+  # 1. Ensure we are only looking at High -> High transitions
+  filter(focal_high_engagement == TRUE & lag_high == TRUE) %>% 
+  # We need to pivot the 'Past' columns so we can group by them
+  mutate(
+    past_type = case_when(
+      lacracao_cat_past == "lacracao" ~ "Lacracao",
+      negative_post_cat_past == 1 ~ "Negative",
+      congressional_cat_past == 1 ~ "Congressional",
+      TRUE ~ "Other"
+    ),
+    present_type = case_when(
+      lacracao_cat_present == "lacracao" ~ "Lacracao",
+      negative_post_cat_present == 1 ~ "Negative",
+      congressional_cat_present == 1 ~ "Congressional",
+      TRUE ~ "Other"
+    )
+  ) %>%
+  filter(past_type != "Other" & present_type != "Other")
+
+# 3. Generate the 3x3 Probability Matrix
+matrix_3x3 <- df_matrix_long %>%
+  group_by(past_type) %>%
+  count(present_type) %>%
+  mutate(probability = n / sum(n)) %>%
+  dplyr::select(-n) %>%
+  pivot_wider(names_from = present_type, values_from = probability)
+
+print(matrix_3x3)
+```
+*The results reveal a "path of least resistance" that pulls politicians away from institutional discourse and toward digitized conflict.* Once a politician attains high engagement with an antagonistic or negative post, there is a roughly 60% probability that a subsequent high-engagement "hit" will also be confrontational in nature. This content therefore serves as a stabilizer for online visibility. Critically, once a politician enters this high-arousal cycle, the probability of returning to congressional work in the subsequent hit (22.6%) is 61% lower than the baseline persistence of institutional content (57.8%). This suggests a powerful algorithmic incentive: avoiding the congressional "return path" is the most statistically reliable method for a politician to maintain their high-engagement momentum. 
+
+If a parliamentarian attains high engagement with a congressional post, there is a *58% chance* the next hit is also Congressional. This probability falls to *22%* if that engagement boost was first obtained with lacração, and it is *almost halved* if the first post was negative.
+
+
+*Strategic consistency after success → Do politicians repeat the same content after high engagement?*
+
+```{r}
+# Settings
+min_triggers <- 1
+
+# ---------------------------------------------------
+# 1) Order posts and create next-post outcomes
+# ---------------------------------------------------
+df_fb_transition <- df_fb_regression %>%
+  arrange(author, timestamp, postID) %>%
+  group_by(author) %>%
+  arrange(timestamp, postID, .by_group = TRUE) %>%
+  mutate(
+    # Next-post raw outcomes
+    next_congressional_content = lead(congressional_content),
+    next_lacracao_cat          = lead(lacracao_cat),
+    next_negative_post_cat     = lead(negative_post_cat),
+
+    # Binary next-post outcomes
+    next_congressional = case_when(
+      is.na(next_congressional_content) ~ NA_integer_,
+      next_congressional_content == "tie" ~ NA_integer_,
+      next_congressional_content %in% c("programmatic", "parochial") ~ 1L,
+      next_congressional_content == "other" ~ 0L
+    ),
+
+    next_programmatic = case_when(
+      is.na(next_congressional_content) ~ NA_integer_,
+      next_congressional_content == "tie" ~ NA_integer_,
+      next_congressional_content == "programmatic" ~ 1L,
+      next_congressional_content %in% c("parochial", "other") ~ 0L
+    ),
+
+    next_parochial = case_when(
+      is.na(next_congressional_content) ~ NA_integer_,
+      next_congressional_content == "tie" ~ NA_integer_,
+      next_congressional_content == "parochial" ~ 1L,
+      next_congressional_content %in% c("programmatic", "other") ~ 0L
+    ),
+
+    next_lacracao = case_when(
+      is.na(next_lacracao_cat) ~ NA_integer_,
+      next_lacracao_cat == "lacracao" ~ 1L,
+      next_lacracao_cat == "no_lacracao" ~ 0L
+    ),
+
+    next_negative = case_when(
+      is.na(next_negative_post_cat) ~ NA_integer_,
+      TRUE ~ as.integer(next_negative_post_cat)
+    ),
+
+    # Trigger windows
+    focal_low_2posts  = focal_low_engagement  & lag(focal_low_engagement,  default = FALSE),
+    focal_high_2posts = focal_high_engagement & lag(focal_high_engagement, default = FALSE)
+  ) %>%
+  ungroup()
+
+# ---------------------------------------------------
+# 2) Compute author-level baseline probabilities
+# ---------------------------------------------------
+author_baselines <- df_fb_transition %>%
+  group_by(author) %>%
+  summarise(
+    base_congressional = mean(congressional_content %in% c("programmatic", "parochial"), na.rm = TRUE),
+    base_programmatic  = mean(congressional_content == "programmatic", na.rm = TRUE),
+    base_parochial     = mean(congressional_content == "parochial",    na.rm = TRUE),
+    base_lacracao      = mean(lacracao_cat == "lacracao",              na.rm = TRUE),
+    base_negative      = mean(negative_post_cat == 1L,                 na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# ---------------------------------------------------
+# 3) Helper function to compute conditional probabilities
+# ---------------------------------------------------
+compute_conditional_probs <- function(data, trigger_var, suffix, min_triggers = 10) {
+  trigger_sym <- rlang::ensym(trigger_var)
+
+  data %>%
+    group_by(author) %>%
+    summarise(
+      !!paste0("n_", suffix, "_triggers") := sum(!!trigger_sym, na.rm = TRUE),
+
+      !!paste0("cond_congressional_", suffix) := if_else(
+        get(paste0("n_", suffix, "_triggers")) >= min_triggers,
+        mean(next_congressional[!!trigger_sym], na.rm = TRUE),
+        NA_real_
+      ),
+
+      !!paste0("cond_programmatic_", suffix) := if_else(
+        get(paste0("n_", suffix, "_triggers")) >= min_triggers,
+        mean(next_programmatic[!!trigger_sym], na.rm = TRUE),
+        NA_real_
+      ),
+
+      !!paste0("cond_parochial_", suffix) := if_else(
+        get(paste0("n_", suffix, "_triggers")) >= min_triggers,
+        mean(next_parochial[!!trigger_sym], na.rm = TRUE),
+        NA_real_
+      ),
+
+      !!paste0("cond_lacracao_", suffix) := if_else(
+        get(paste0("n_", suffix, "_triggers")) >= min_triggers,
+        mean(next_lacracao[!!trigger_sym], na.rm = TRUE),
+        NA_real_
+      ),
+
+      !!paste0("cond_negative_", suffix) := if_else(
+        get(paste0("n_", suffix, "_triggers")) >= min_triggers,
+        mean(next_negative[!!trigger_sym], na.rm = TRUE),
+        NA_real_
+      ),
+      .groups = "drop"
+    )
+}
+
+# ---------------------------------------------------
+# 4) Compute author-level conditional probabilities
+# ---------------------------------------------------
+author_cond_low <- compute_conditional_probs(
+  df_fb_transition,
+  trigger_var = focal_low_engagement,
+  suffix = "low",
+  min_triggers = min_triggers
+)
+
+author_cond_high <- compute_conditional_probs(
+  df_fb_transition,
+  trigger_var = focal_high_engagement,
+  suffix = "high",
+  min_triggers = min_triggers
+)
+
+author_cond_low_2posts <- compute_conditional_probs(
+  df_fb_transition,
+  trigger_var = focal_low_2posts,
+  suffix = "low_2posts",
+  min_triggers = min_triggers
+)
+
+author_cond_high_2posts <- compute_conditional_probs(
+  df_fb_transition,
+  trigger_var = focal_high_2posts,
+  suffix = "high_2posts",
+  min_triggers = min_triggers
+)
+
+# ---------------------------------------------------
+# 5) Join everything and compute author-level RRs
+# ---------------------------------------------------
+author_rr <- author_baselines %>%
+  left_join(author_cond_low, by = "author") %>%
+  left_join(author_cond_high, by = "author") %>%
+  left_join(author_cond_low_2posts, by = "author") %>%
+  left_join(author_cond_high_2posts, by = "author") %>%
+  mutate(
+    # 1-post LOW
+    rr_congressional_low = if_else(
+      base_congressional > 0 & !is.na(cond_congressional_low),
+      cond_congressional_low / base_congressional,
+      NA_real_
+    ),
+    rr_lacracao_low = if_else(
+      base_lacracao > 0 & !is.na(cond_lacracao_low),
+      cond_lacracao_low / base_lacracao,
+      NA_real_
+    ),
+    rr_negative_low = if_else(
+      base_negative > 0 & !is.na(cond_negative_low),
+      cond_negative_low / base_negative,
+      NA_real_
+    ),
+
+    # 1-post HIGH
+    rr_congressional_high = if_else(
+      base_congressional > 0 & !is.na(cond_congressional_high),
+      cond_congressional_high / base_congressional,
+      NA_real_
+    ),
+    rr_lacracao_high = if_else(
+      base_lacracao > 0 & !is.na(cond_lacracao_high),
+      cond_lacracao_high / base_lacracao,
+      NA_real_
+    ),
+    rr_negative_high = if_else(
+      base_negative > 0 & !is.na(cond_negative_high),
+      cond_negative_high / base_negative,
+      NA_real_
+    ),
+
+    # 2-post LOW
+    rr_congressional_low_2posts = if_else(
+      base_congressional > 0 & !is.na(cond_congressional_low_2posts),
+      cond_congressional_low_2posts / base_congressional,
+      NA_real_
+    ),
+    rr_lacracao_low_2posts = if_else(
+      base_lacracao > 0 & !is.na(cond_lacracao_low_2posts),
+      cond_lacracao_low_2posts / base_lacracao,
+      NA_real_
+    ),
+    rr_negative_low_2posts = if_else(
+      base_negative > 0 & !is.na(cond_negative_low_2posts),
+      cond_negative_low_2posts / base_negative,
+      NA_real_
+    ),
+
+    # 2-post HIGH
+    rr_congressional_high_2posts = if_else(
+      base_congressional > 0 & !is.na(cond_congressional_high_2posts),
+      cond_congressional_high_2posts / base_congressional,
+      NA_real_
+    ),
+    rr_lacracao_high_2posts = if_else(
+      base_lacracao > 0 & !is.na(cond_lacracao_high_2posts),
+      cond_lacracao_high_2posts / base_lacracao,
+      NA_real_
+    ),
+    rr_negative_high_2posts = if_else(
+      base_negative > 0 & !is.na(cond_negative_high_2posts),
+      cond_negative_high_2posts / base_negative,
+      NA_real_
+    )
+  )
+
+# ---------------------------------------------------
+# 6) Identify which content type is most likely after
+#    HIGH engagement for each politician
+# ---------------------------------------------------
+author_alignment_high <- author_rr %>%
+  transmute(
+    author,
+    n_high_triggers,
+    n_high_2posts_triggers,
+
+    cond_congressional_high,
+    cond_lacracao_high,
+    cond_negative_high,
+
+    cond_congressional_high_2posts,
+    cond_lacracao_high_2posts,
+    cond_negative_high_2posts,
+
+    dominant_after_high = case_when(
+      is.na(cond_congressional_high) & is.na(cond_lacracao_high) & is.na(cond_negative_high) ~ NA_character_,
+      cond_congressional_high >= cond_lacracao_high & cond_congressional_high >= cond_negative_high ~ "Congressional",
+      cond_lacracao_high >= cond_congressional_high & cond_lacracao_high >= cond_negative_high ~ "Lacracao",
+      cond_negative_high >= cond_congressional_high & cond_negative_high >= cond_lacracao_high ~ "Negative"
+    ),
+
+    dominant_after_high_2posts = case_when(
+      is.na(cond_congressional_high_2posts) & is.na(cond_lacracao_high_2posts) & is.na(cond_negative_high_2posts) ~ NA_character_,
+      cond_congressional_high_2posts >= cond_lacracao_high_2posts & cond_congressional_high_2posts >= cond_negative_high_2posts ~ "Congressional",
+      cond_lacracao_high_2posts >= cond_congressional_high_2posts & cond_lacracao_high_2posts >= cond_negative_high_2posts ~ "Lacracao",
+      cond_negative_high_2posts >= cond_congressional_high_2posts & cond_negative_high_2posts >= cond_lacracao_high_2posts ~ "Negative"
+    )
+  )
+
+# ---------------------------------------------------
+# 7) Build compact summary table
+# ---------------------------------------------------
+rr_results_table <- tibble(
+  window = rep(
+    c(
+      "Low engagement (1 post)",
+      "High engagement (1 post)",
+      "Low engagement (2-post sequence)",
+      "High engagement (2-post sequence)"
+    ),
+    each = 3
+  ),
+  outcome = rep(c("Congressional", "Lacração", "Negative"), times = 4)
+) %>%
+  mutate(
+    n_authors = c(
+      sum(!is.na(author_rr$rr_congressional_low)),
+      sum(!is.na(author_rr$rr_lacracao_low)),
+      sum(!is.na(author_rr$rr_negative_low)),
+
+      sum(!is.na(author_rr$rr_congressional_high)),
+      sum(!is.na(author_rr$rr_lacracao_high)),
+      sum(!is.na(author_rr$rr_negative_high)),
+
+      sum(!is.na(author_rr$rr_congressional_low_2posts)),
+      sum(!is.na(author_rr$rr_lacracao_low_2posts)),
+      sum(!is.na(author_rr$rr_negative_low_2posts)),
+
+      sum(!is.na(author_rr$rr_congressional_high_2posts)),
+      sum(!is.na(author_rr$rr_lacracao_high_2posts)),
+      sum(!is.na(author_rr$rr_negative_high_2posts))
+    ),
+    total_triggers = c(
+      sum(author_rr$n_low_triggers[!is.na(author_rr$rr_congressional_low)], na.rm = TRUE),
+      sum(author_rr$n_low_triggers[!is.na(author_rr$rr_lacracao_low)], na.rm = TRUE),
+      sum(author_rr$n_low_triggers[!is.na(author_rr$rr_negative_low)], na.rm = TRUE),
+
+      sum(author_rr$n_high_triggers[!is.na(author_rr$rr_congressional_high)], na.rm = TRUE),
+      sum(author_rr$n_high_triggers[!is.na(author_rr$rr_lacracao_high)], na.rm = TRUE),
+      sum(author_rr$n_high_triggers[!is.na(author_rr$rr_negative_high)], na.rm = TRUE),
+
+      sum(author_rr$n_low_2posts_triggers[!is.na(author_rr$rr_congressional_low_2posts)], na.rm = TRUE),
+      sum(author_rr$n_low_2posts_triggers[!is.na(author_rr$rr_lacracao_low_2posts)], na.rm = TRUE),
+      sum(author_rr$n_low_2posts_triggers[!is.na(author_rr$rr_negative_low_2posts)], na.rm = TRUE),
+
+      sum(author_rr$n_high_2posts_triggers[!is.na(author_rr$rr_congressional_high_2posts)], na.rm = TRUE),
+      sum(author_rr$n_high_2posts_triggers[!is.na(author_rr$rr_lacracao_high_2posts)], na.rm = TRUE),
+      sum(author_rr$n_high_2posts_triggers[!is.na(author_rr$rr_negative_high_2posts)], na.rm = TRUE)
+    ),
+    mean_rr = c(
+      mean(author_rr$rr_congressional_low, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_low, na.rm = TRUE),
+      mean(author_rr$rr_negative_low, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_high, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_high, na.rm = TRUE),
+      mean(author_rr$rr_negative_high, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_low_2posts, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_low_2posts, na.rm = TRUE),
+      mean(author_rr$rr_negative_low_2posts, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_high_2posts, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_high_2posts, na.rm = TRUE),
+      mean(author_rr$rr_negative_high_2posts, na.rm = TRUE)
+    ),
+    median_rr = c(
+      median(author_rr$rr_congressional_low, na.rm = TRUE),
+      median(author_rr$rr_lacracao_low, na.rm = TRUE),
+      median(author_rr$rr_negative_low, na.rm = TRUE),
+
+      median(author_rr$rr_congressional_high, na.rm = TRUE),
+      median(author_rr$rr_lacracao_high, na.rm = TRUE),
+      median(author_rr$rr_negative_high, na.rm = TRUE),
+
+      median(author_rr$rr_congressional_low_2posts, na.rm = TRUE),
+      median(author_rr$rr_lacracao_low_2posts, na.rm = TRUE),
+      median(author_rr$rr_negative_low_2posts, na.rm = TRUE),
+
+      median(author_rr$rr_congressional_high_2posts, na.rm = TRUE),
+      median(author_rr$rr_lacracao_high_2posts, na.rm = TRUE),
+      median(author_rr$rr_negative_high_2posts, na.rm = TRUE)
+    ),
+    prop_rr_gt1 = c(
+      mean(author_rr$rr_congressional_low > 1, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_low > 1, na.rm = TRUE),
+      mean(author_rr$rr_negative_low > 1, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_high > 1, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_high > 1, na.rm = TRUE),
+      mean(author_rr$rr_negative_high > 1, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_low_2posts > 1, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_low_2posts > 1, na.rm = TRUE),
+      mean(author_rr$rr_negative_low_2posts > 1, na.rm = TRUE),
+
+      mean(author_rr$rr_congressional_high_2posts > 1, na.rm = TRUE),
+      mean(author_rr$rr_lacracao_high_2posts > 1, na.rm = TRUE),
+      mean(author_rr$rr_negative_high_2posts > 1, na.rm = TRUE)
+    )
+  ) %>%
+  mutate(
+    n_authors      = as.integer(n_authors),
+    total_triggers = as.integer(total_triggers),
+    mean_rr        = round(mean_rr, 3),
+    median_rr      = round(median_rr, 3),
+    prop_rr_gt1    = round(prop_rr_gt1, 3)
+  )
+
+print(rr_results_table)
+```
+
+# Export
+```{r}
+rr_results_table %>%
+  openxlsx::write.xlsx(
+    file = here::here("..", "_output", "engagement_transitions.xlsx")
+  )
+```
+
+
+```{r}
+openxlsx::write.xlsx(
+  list(
+    fb_programmatic_parochial = tidy_model %>%
+      dplyr::mutate(sig = sig_stars(p.value)),
+    
+    fb_lacracao = tidy_model2 %>%
+      dplyr::mutate(sig = sig_stars(as.numeric(p.value))),
+    
+    insta_programmatic_parochial = tidy_model_insta %>%
+      dplyr::mutate(sig = sig_stars(p.value)),
+    
+    insta_lacracao = tidy_model2_insta %>%
+      dplyr::mutate(sig = sig_stars(as.numeric(p.value))),
+    
+    x_programmatic_parochial = tidy_model_X %>%
+      dplyr::mutate(sig = sig_stars(p.value)),
+    
+    x_lacracao = tidy_model2_X %>%
+      dplyr::mutate(sig = sig_stars(as.numeric(p.value)))
+  ),
+  file = here::here("..", "_output", "regression_results.xlsx"),
+  overwrite = TRUE
+)
+```

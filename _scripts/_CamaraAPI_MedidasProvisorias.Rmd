@@ -1,0 +1,185 @@
+---
+title: "CamaraAPI_MP"
+author: "André K. Rodarte"
+date: "2026-03-04"
+output: html_document
+---
+
+```{r setup, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+# install.packages(c("httr2","readr","dplyr","purrr","janitor","tidyr","stringr"))
+library(httr2)
+library(readr)
+library(dplyr)
+library(purrr)
+library(janitor)
+library(tidyr)
+library(stringr)
+
+base_api  <- "https://dadosabertos.camara.leg.br/api/v2"
+base_file <- "https://dadosabertos.camara.leg.br/arquivos"
+```
+
+
+```{r}
+read_camara_csv_anydelim <- function(url) {
+  # Try ';' first (most common), then ',' as fallback.
+  x <- tryCatch(
+    readr::read_delim(url, delim = ";", locale = locale(encoding = "UTF-8"),
+                      show_col_types = FALSE, progress = FALSE),
+    error = function(e) NULL
+  )
+
+  # If it still came as a single column, try comma.
+  if (is.null(x) || ncol(x) == 1) {
+    x <- readr::read_delim(url, delim = ",", locale = locale(encoding = "UTF-8"),
+                           show_col_types = FALSE, progress = FALSE)
+  }
+
+  x |> janitor::clean_names()
+}
+
+api_get <- function(path, query = list()) {
+  req <- request(paste0(base_api, path)) |>
+    req_url_query(!!!query) |>
+    req_headers(accept = "application/json")
+  resp <- req_perform(req)
+  resp_body_json(resp)
+}
+
+years <- c(2019, 2020)
+
+orientacoes <- map_dfr(
+  years,
+  \(y) read_camara_csv_anydelim(
+    sprintf("%s/votacoesOrientacoes/csv/votacoesOrientacoes-%d.csv", base_file, y)
+  ) |> mutate(ano_votacao = y)
+)
+
+afetadas <- map_dfr(
+  years,
+  \(y) read_camara_csv_anydelim(
+    sprintf("%s/votacoesProposicoes/csv/votacoesProposicoes-%d.csv", base_file, y)
+  ) |> mutate(ano_votacao = y)
+)
+
+# Sanity check: you should now see MANY columns
+print(ncol(orientacoes)); print(head(names(orientacoes), 20))
+print(ncol(afetadas));    print(head(names(afetadas), 20))
+```
+
+
+```{r}
+# -----------------------
+# Identify votes that affected MPVs 
+# -----------------------
+mpv_votes <- afetadas |>
+  filter(
+    proposicao_sigla_tipo == "MPV",
+    proposicao_ano %in% c(2019, 2020)   # year of the MP itself
+    # If instead you want votes that happened in 2019–2020, use: ano_votacao %in% c(2019, 2020)
+  ) |>
+  distinct(
+    id_votacao,
+    data,                 # date of the vote
+    proposicao_id,
+    proposicao_sigla_tipo,
+    proposicao_numero,
+    proposicao_ano,
+    ano_votacao            # year of the vote file we downloaded
+  ) |>
+  mutate(
+    mpv_sigla = sprintf("MPV %s/%s", proposicao_numero, proposicao_ano)
+  )
+
+# -----------------------
+# Join party/bloc orientations to those MPV votes
+# -----------------------
+mpv_orientacoes <- mpv_votes |>
+  inner_join(orientacoes, by = c("id_votacao", "ano_votacao")) |>
+  transmute(
+    ano_votacao,
+    data_votacao = data,
+    id_votacao,
+
+    mpv_id    = proposicao_id,
+    mpv_sigla = sprintf("%s %s/%s",
+                        proposicao_sigla_tipo,
+                        proposicao_numero,
+                        proposicao_ano),
+    sigla_orgao,
+    descricao,       # description of the orientation row (often "Liderança do Governo", etc.)
+    sigla_bancada,
+    uri_bancada,
+    orientacao
+  ) |>
+  arrange(ano_votacao, data_votacao, id_votacao, sigla_bancada)
+
+mpv_orientacoes
+
+# Government orientation
+gov_position <- mpv_orientacoes %>%
+  filter(sigla_bancada %in% c("GOV.", "GOVERNO")) %>%
+  select(id_votacao, gov_orientation = orientacao)
+```
+
+
+```{r}
+#normalize names
+mpv_orientacoes <- mpv_orientacoes %>%
+  mutate(
+    sigla_bancada = str_to_upper(sigla_bancada),
+    sigla_bancada = recode(sigla_bancada,
+      "REPUBLICAN" = "REPUBLICANOS",
+      "SOLIDARIED" = "SOLIDARIEDADE",
+      "PODEMOS" = "PODE",
+      "CIDADANIA" = "CIDADANIA"
+    )
+  )
+
+mpv_parties <- mpv_orientacoes %>%
+  filter(sigla_bancada %in% parties$Party)
+
+# Join with government orientation
+mpv_parties <- mpv_parties %>%
+  left_join(gov_position, by = "id_votacao")
+```
+
+#Compute alignment
+```{r}
+mpv_parties <- mpv_parties %>%
+  filter(
+    orientacao %in% c("Sim", "Não"),
+    gov_orientation %in% c("Sim", "Não")
+  ) %>%
+  mutate(
+    agree_gov = if_else(orientacao == gov_orientation, 1, -1)
+  )
+
+party_alignment <- mpv_parties %>%
+  group_by(sigla_bancada) %>%
+  summarise(
+    gov_alignment = mean(agree_gov, na.rm = TRUE),
+    n_votes = n()
+  )
+
+# Stringent threshold: a party is classified as pro-government if their average agreement on MP votes are positive; they are classified as against the government if their average is negative. 
+party_alignment <- party_alignment %>%
+  mutate(
+    ProGov = if_else(gov_alignment > 0, 1, -1)
+  )
+
+parties <- parties %>%
+  left_join(
+    party_alignment %>%
+      select(sigla_bancada, ProGov),
+    by = c("Party" = "sigla_bancada")
+  )
+```
+
+```{r}
+readr::write_csv2(
+  parties,
+  here::here("..", "_processed_data", "parties_ideology_gov.csv")
+  )
+```
+

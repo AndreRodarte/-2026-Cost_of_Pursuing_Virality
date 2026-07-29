@@ -1,0 +1,147 @@
+---
+title: "Lacracao_SentimentAnalysis"
+author: "André K. Rodarte"
+date: "2026-03-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# install.packages("reticulate")
+library(reticulate)
+use_condaenv("r-reticulate", required = TRUE)
+py_config()
+```
+
+```{r}
+reticulate::py_install("leia-br", pip = TRUE) 
+# Note: 'leia-br' is the distribution name for the Brazilian Portuguese VADER
+```
+```{r}
+library(reticulate)
+use_condaenv("r-reticulate", required = TRUE)
+
+# Fallback if leia_br isn't found
+leia <- import("leia")
+analyzer <- leia$SentimentIntensityAnalyzer()
+
+# Test it
+result <- analyzer$polarity_scores("Isso é uma farsa e uma vergonha!")
+print(result)
+```
+
+```{r}
+# Define the extraction function
+get_compound <- function(text) {
+  # Handle NA, empty strings, or non-character data
+  if (is.na(text) || nchar(trimws(as.character(text))) == 0) {
+    return(NA_real_)
+  }
+  
+  scores <- analyzer$polarity_scores(as.character(text))
+  return(scores$compound)
+}
+```
+
+### FB
+```{r}
+df_fb$compound_sentiment <- vapply(
+  df_fb$text_combined,
+  get_compound,
+  FUN.VALUE = numeric(1)
+)
+```
+
+*Variable: negative polarity + intensity.*
+```{r}
+library(dplyr)
+
+df_fb <- df_fb %>%
+  mutate(
+    negative_intensity = ifelse(compound_sentiment < 0, 
+                                abs(compound_sentiment), 
+                                0)
+  )
+```
+
+
+```{r}
+df_fb %>%
+  summarise(
+    parochial_sentiment = mean(compound_sentiment[parochial_matches > 0], na.rm = TRUE),
+    programmatic_sentiment = mean(compound_sentiment[programmatic_matches > 0], na.rm = TRUE),
+    lacracao_sentiment = mean(compound_sentiment[lacracao_matches > 0], na.rm = TRUE)
+  )
+```
+
+```{r}
+cor(df_fb$lacracao_matches, df_fb$negative_intensity, use="complete.obs")
+```
+
+### Insta
+```{r}
+df_insta$compound_sentiment <- vapply(
+  df_insta$body,
+  get_compound,
+  FUN.VALUE = numeric(1)
+)
+```
+
+*Variable: negative polarity + intensity.*
+```{r}
+library(dplyr)
+df_insta <- df_insta %>%
+  mutate(
+    negative_intensity = ifelse(compound_sentiment < 0, 
+                                abs(compound_sentiment), 
+                                0)
+  )
+```
+
+
+### X
+```{r}
+df_X$compound_sentiment <- vapply(
+  df_X$body,
+  get_compound,
+  FUN.VALUE = numeric(1)
+)
+```
+
+```{r}
+library(dplyr)
+df_X <- df_X %>%
+  mutate(
+    negative_intensity = ifelse(compound_sentiment < 0, 
+                                abs(compound_sentiment), 
+                                0)
+  )
+```
+
+### Export
+```{r}
+library(readr)
+ 
+#Facebook
+ readr::write_rds(
+   df_fb,
+   here::here("..", "_processed_data", "fb_analysis.rds")
+   )
+ readr::write_csv2(
+   df_fb,
+   here::here("..", "_processed_data", "fb_analysis.csv")
+   )
+#Insta
+ readr::write_rds(
+   df_insta,
+   here::here("..", "_processed_data", "insta_analysis.rds")
+   )
+#X
+ readr::write_rds(
+   df_X,
+   here::here("..", "_processed_data", "X_analysis.rds")
+   )
+ 
+```
+
+
+

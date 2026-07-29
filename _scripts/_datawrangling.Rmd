@@ -1,0 +1,754 @@
+---
+title: "datawrangling"
+author: "André K. Rodarte"
+date: "2026-02-07"
+output: html_document
+---
+
+```{r setup, echo=TRUE, results='hide', message=FALSE, warning=FALSE}
+library(here)
+library(tidyverse)
+library(tidytext)
+library(tokenizers)
+library("lexiconPT")
+library(readr)
+library(dplyr)
+library(stringi)
+library(rlang)
+library(fuzzyjoin)
+library(stringi)
+library(tibble)
+library(purrr)
+library(tidyr)
+library(stringr)
+library(here)
+```
+
+**Set up**
+
+```{r}
+# Cleaning set up
+clean_text <- function(x) {
+  x %>%
+    stringi::stri_trans_general(id = "Latin-ASCII") %>%
+    tolower() %>%
+    gsub("[[:punct:]]", "", ., perl = TRUE) %>%
+    gsub("[^[:print:]]", "", ., perl = TRUE) %>%
+    gsub("🄲|🯲", "", ., perl = TRUE)
+}
+
+# Formatting options
+format_p_apa <- function(p) {
+  dplyr::case_when(
+    is.na(p)        ~ NA_character_,
+    p < .001        ~ "< .001",
+    p < .01         ~ paste0("= .", stringr::str_pad(round(p, 3) * 1000, 3, pad = "0")),
+    p < .05         ~ paste0("= .", stringr::str_pad(round(p, 3) * 1000, 3, pad = "0")),
+    TRUE            ~ paste0("= .", stringr::str_pad(round(p, 2) * 100, 2, pad = "0"))
+  )
+}
+
+sig_stars <- function(p) {
+  dplyr::case_when(
+    is.na(p) ~ "",
+    p < .001 ~ "***",
+    p < .01  ~ "**",
+    p < .05  ~ "*",
+    TRUE     ~ ""
+  )
+}
+```
+
+# Format text
+
+### FB
+
+**Facebook posts created during the legislature, excluding the election year.**
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+df_FB <- readr::read_csv(
+  here::here("_unprocessed_data",
+             "2024-01-06 - FB - Historical-Report-Parliamentarians-in-56th-legislature-2018-01-01---2023-01-02_with_OCR.csv"),
+  show_col_types = FALSE) %>%
+  dplyr::select(
+    -id, -unix_timestamp, -page_category, -page_top_country,
+    -page_description, -sponsor_name, -sponsor_id, -sponsor_category) %>%
+  dplyr::mutate(
+    timestamp = as.POSIXct(timestamp, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")) %>%
+  dplyr::filter(timestamp >= as.POSIXct("2019-01-01 00:00:00", tz = "UTC") &
+      timestamp <= as.POSIXct("2021-12-30 23:59:59", tz = "UTC")) %>%
+  dplyr::mutate(postID = dplyr::row_number())
+
+
+df_FB <- df_FB %>%
+  mutate(across(
+    c(body, body_image, body_link, body_description, ocr_text),
+    clean_text))
+
+#Combine text
+df_FB <- df_FB %>%
+  mutate(
+    text_combined = paste(
+      coalesce(body, ""),
+      coalesce(body_image, ""),
+      coalesce(body_link, ""),
+      coalesce(body_description, ""),
+      coalesce(ocr_text, ""),
+      sep = " ") %>%
+      str_squish()  
+  )
+```
+
+```{r}
+df_FB$post_format <- dplyr::recode(df_FB$type, 
+                         #Visual formats
+                         "Photo" = "Image",
+                         #Textual formats
+                         "Link" = "Text", 
+                         "Status" = "Text", 
+                         #Video formats
+                         "Native Video" = "Video", 
+                         "Video" = "Video", 
+                         "Live Video Complete" = "Video", 
+                         "YouTube" = "Video", 
+                         "Live Video Scheduled" = "Video", 
+                         "Live Video" = "Video")
+
+df_FB$post_format <- factor(df_FB$post_format, levels = c("Image", "Video", "Text"))
+
+# Followers
+df_FB$page_followers <- as.numeric(gsub("[^0-9]", "", df_FB$page_followers))
+
+# Hashtags
+df_FB$has_hashtags <- ifelse(is.na(df_FB$hashtags) | df_FB$hashtags == "", 0, 1)
+df_FB$has_hashtags <- factor(df_FB$has_hashtags)
+
+#ENGAGEMENT
+df_FB <- df_FB %>%
+  mutate(engagement = rowSums(dplyr::select(., 
+    likes, likes_love, likes_wow, likes_haha, 
+    likes_sad, likes_angry, likes_care, 
+    comments, shares), 
+    na.rm = TRUE))
+
+# Dealing with exceptions
+df_FB <- df_FB %>%
+  dplyr::mutate(
+    author = dplyr::if_else(
+      author == "geninhozuliani.pag",
+      "geninhozuliani",
+      author)
+  )
+```
+
+### Insta
+```{r}
+df_insta <- readr::read_csv(
+  here::here(
+    "_unprocessed_data",
+    "2024-01-09 - Insta - Historical-Report-Parliamentarians-in-56th-legislature-2018-01-01---2023-01-02.csv")) %>%
+  dplyr::select(-id, -thread_id, -parent_id, -thumbnail_url, -subject) %>%
+    # timeframe
+    dplyr::filter(timestamp >= as.POSIXct("2019-01-01 00:00:00") &
+    timestamp <= as.POSIXct("2021-12-30 23:59:59")) %>%
+  dplyr::mutate(
+    postID = dplyr::row_number(),
+    body = clean_text(body),
+    # User tags
+    has_hashtags = factor(ifelse(is.na(hashtags) | hashtags == "", 0, 1)),
+    has_tags = factor(ifelse(is.na(usertags) | usertags == "", 0, 1)),
+    # Engagement
+    engagement = as.numeric(num_comments + num_likes)
+  )
+```
+
+### X
+ 
+```{r}
+df_X <- readr::read_csv(
+  here::here("..", "_unprocessed_data",
+  "2023-03-31 - Twitter - Historical-Report-Parliamentarians-in-56th-legislature----01-jan-2018-----01--feb-2023.csv")) %>%
+  # timeframe
+  filter(timestamp >= as.POSIXct("2019-01-01 00:00:00") & 
+         timestamp <= as.POSIXct("2021-12-30 23:59:59")) %>%
+  dplyr::select(-possibly_sensitive, -language_guess, -source, -author_id, 
+         -thread_id, -id, -subject, -long_lat, -place_name) %>%
+  # Hashtags
+  mutate(has_hashtags = ifelse(is.na(hashtags) | hashtags == "", 0, 1),
+         has_hashtags = factor(has_hashtags)) %>%
+  # Image
+  mutate(has_image = ifelse(is.na(images) | images == "", 0, 1),
+         has_image = factor(has_image)) %>%
+  # Video
+  mutate(has_video = ifelse(is.na(videos) | videos == "", 0, 1),
+         has_video = factor(has_video)) %>%
+  # User tags
+  mutate(has_tags = ifelse(is.na(mentions) | mentions == "", 0, 1),
+         has_tags = factor(has_tags)) %>%
+  # Engagement
+  mutate(engagement = retweet_count + reply_count + like_count + quote_count)
+
+#ID
+df_X$postID <- row.names(df_X)
+
+#Clean Text
+df_X$body <- clean_text(df_X$body)
+```
+
+
+#### Political Parties
+
+```{r}
+target_year <- 2021
+
+# Câmara API endpoint
+url_base <- "https://dadosabertos.camara.leg.br/api/v2/deputados"
+
+# Define the date range for 2021
+start_date <- paste0(target_year, "-01-01")
+end_date <- paste0(target_year, "-12-31")
+
+# Make the request 
+res <- GET("https://dadosabertos.camara.leg.br/api/v2/deputados",
+           query = list(
+             dataInicio = "2021-01-01",
+             dataFim = "2021-12-31",
+             itens = 1000
+           ),
+           add_headers(Accept = "application/json"))
+
+# Parse JSON and assign to a safely named object
+res_data <- fromJSON(rawToChar(res$content), flatten = TRUE)
+
+# Check column names
+names(res_data$dados)
+
+# Extract and rename relevant fields
+deputados_df <- res_data$dados %>%
+  dplyr::select(nome, partido = siglaPartido, uf = siglaUf) %>%
+  arrange(partido, nome)
+
+deputados_df <- deputados_df %>%
+  mutate(
+    name_simplified = nome %>%
+      stri_trans_general("Latin-ASCII") %>%    
+      str_to_lower() %>%                       
+      str_replace_all(titles_to_remove, "") %>%
+      str_replace_all("[0-9\\.]", "") %>%      
+      str_squish()                             
+  )
+# write.csv(deputados_df, "deputados_df.csv", row.names = FALSE)
+```
+
+
+
+```{r}
+deputados_df_handles <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/_unprocessed_data/Platform_Handles.csv") 
+
+norm_key <- function(x) {
+  x %>%
+    as.character() %>%
+    stringi::stri_trans_general("Latin-ASCII") %>%
+    str_to_lower() %>%
+    str_replace("^@", "") %>%
+    str_replace_all("[0-9]+", "") %>% 
+    str_replace_all("[^a-z0-9]", "") %>%
+    str_squish()
+}
+  
+# Safe left join with exact match
+handles_unique <- deputados_df_handles %>%
+  dplyr::mutate(fb_key = norm_key(facebook_handle)) %>%
+  dplyr::filter(!is.na(fb_key), fb_key != "") %>%
+  dplyr::distinct(fb_key, .keep_all = TRUE) %>%
+  dplyr::select(fb_key, party, state)
+
+
+# Join into df_FB
+df_FB <- df_FB %>%
+  dplyr::mutate(fb_key = norm_key(author)) %>%
+  dplyr::left_join(handles_unique, by = "fb_key")  %>%
+  dplyr::select(-fb_key)
+ 
+ #Check
+ # unmatched_authors <- df_FB %>%
+ #  dplyr::filter(is.na(party)) %>%
+ #  dplyr::distinct(author) %>%
+ #  dplyr::arrange(author)
+
+ # Exceptions
+ df_FB <- df_FB %>%
+  dplyr::mutate(
+    party = dplyr::case_when(
+      author == "cleberverde.1010"     ~ "REPUBLICANOS",
+      author == "deputadojoaocampos"   ~ "PSB",
+      author == "joaobacelaroficial"   ~ "PL",
+      TRUE ~ party
+    ),
+    state = dplyr::case_when(
+      author == "cleberverde.1010"     ~ "MA",
+      author == "deputadojoaocampos"   ~ "PE",
+      author == "joaobacelaroficial"   ~ "BA",
+      TRUE ~ state
+    )
+  )
+```
+
+##### Parties' Ideology
+```{r}
+# List of parties and their respective ideological score
+parties <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/_unprocessed_data/parties.csv")
+
+df_FB <- df_FB %>%
+  mutate(party = str_to_upper(party))   
+
+parties <- parties %>%
+  mutate(Party = str_to_upper(Party))
+
+# Join ideological score
+df_FB <- df_FB %>%
+  left_join(
+    parties %>% dplyr::select(Party, `2021_ideological_score`),
+    by = c("party" = "Party")
+  )
+```
+
+Note: I added the same ideological score as SOLIDARIEDADE to PROS considering: <https://www.tse.jus.br/comunicacao/noticias/2023/Fevereiro/partido-republicano-da-ordem-social-pros-e-incorporado-ao-solidariedade>. By the same criterium, I gave the same ideological score to PTB and PATRIOTA: <https://www.cnnbrasil.com.br/politica/tse-aprova-fusao-de-ptb-e-patriota-e-novo-partido-tera-direito-a-r-228-mi/>.
+
+
+##### Incumbency
+```{r}
+parties  <- readr::read_csv2(here::here("..", "_processed_data", "parties_ideology_gov.csv"))
+
+#Accounting for party merges and name changes
+df_FB <- df_FB %>%
+  mutate(party = str_to_upper(party),
+         party = dplyr::recode(party, "PODEMOS" = "PODE", "PRB" = "REPUBLICANOS"))
+  #Update ideology_score
+  df_FB <- df_FB %>%
+    left_join(
+    parties %>% dplyr::select(Party, ideology_party = `2021_ideological_score`),
+    by = c("party" = "Party")
+  ) %>%
+  # Use the actual column name from your dataframe here
+  mutate(ideology_2021 = coalesce(`2021_ideological_score`, ideology_party)) %>% 
+  dplyr::select(-ideology_party)
+  #Sanity check
+  # na_by_party <- df_FB %>%
+  # filter(is.na(ideology_2021)) %>%
+  # count(party, sort = TRUE)
+```
+
+
+# Cross Platform
+```{r}
+handles_cross_plat <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/56_Legislature_Cross_platform_handles.csv")
+
+clean_handle <- function(x) {
+  x %>%
+    as.character() %>%
+    stringi::stri_trans_general("Latin-ASCII") %>%
+    stringr::str_to_lower() %>%
+    stringr::str_replace("^@", "") %>%
+    stringr::str_replace_all("https?://", "") %>%
+    stringr::str_replace_all("www\\.", "") %>%
+    stringr::str_replace_all("[0-9\\.]", "") %>%   
+    str_replace_all("[^a-z]", "") %>%     
+    stringr::str_squish()
+}
+
+# For deputies who changed their account names (e.g. Joao Campos)
+alias_handle <- function(x) {
+  x <- as.character(x)
+  z <- str_to_lower(x)
+  z <- if_else(z == "deputadojoaocampos", "joaocampos", z)
+  z <- if_else(z %in% c("geninhozuliani.pag", "geninhozuliani_pagina", "geninhozulianipag"),
+               "geninhozuliani", z)
+  z <- str_replace(z, "^_+", "") # remove leftover leading underscores 
+  z
+}
+```
+
+**Identify X/IG only Handles**
+```{r}
+df_insta <- df_insta %>%
+  mutate(author = alias_handle(author))
+df_X <- df_X %>%
+  mutate(author = alias_handle(author))
+
+# Bridge source table
+handles_cross_plat <- handles_cross_plat %>%
+  mutate(
+    `instagram handle` = alias_handle(`instagram handle`),
+    `twitter handle`   = alias_handle(`twitter handle`),
+    `facebook handle`  = alias_handle(`facebook handle`)
+  )
+```
+
+```{r}
+fb_truth <- df_FB %>%
+  transmute(
+    fb_key = clean_handle(author),
+    party  = str_to_upper(party),
+    state,
+    ideology_2021
+  ) %>%
+  mutate(party = dplyr::recode(party,
+      "PODEMOS" = "PODE",
+      "PRB"     = "REPUBLICANOS")
+  ) %>%
+  distinct(fb_key, .keep_all = TRUE) %>%
+  left_join(
+    parties %>%
+      transmute(party = Party, ProGov, ideology_party = `2021_ideological_score`), by = "party"
+  ) %>%
+  mutate(ideology_2021 = coalesce(ideology_2021, ideology_party)) %>%
+  dplyr::select(-ideology_party)
+```
+
+**Insta Only**
+```{r}
+ig_lookup <- handles_cross_plat %>%
+  transmute(
+    ig_key = clean_handle(alias_handle(`instagram handle`)),
+    fb_key = clean_handle(alias_handle(`facebook handle`)),
+    party_from_handles = str_to_upper(partido),
+    ideology_from_handles = `2021_ideological_score`,
+    state_from_handles = state
+  ) %>%
+  filter(!is.na(ig_key), ig_key != "") %>%
+  distinct()
+ig_lookup <- ig_lookup %>%
+  mutate(
+    party_from_handles = dplyr::recode(party_from_handles,
+      "PODEMOS" = "PODE",
+      "PRB"     = "REPUBLICANOS"
+    )
+  )
+```
+
+**Twitter Only**
+```{r}
+tw_lookup <- handles_cross_plat %>%
+  transmute(
+    tw_key = clean_handle(alias_handle(`twitter handle`)),
+    fb_key = clean_handle(alias_handle(`facebook handle`)),
+    party_from_handles    = str_to_upper(partido),
+    ideology_from_handles = `2021_ideological_score`,
+    state_from_handles    = state
+  ) %>%
+  filter(!is.na(tw_key), tw_key != "") %>%
+  distinct()
+# Harmonize party aliases 
+tw_lookup <- tw_lookup %>%
+  mutate(
+    party_from_handles = dplyr::recode(party_from_handles,
+      "PODEMOS" = "PODE",
+      "PRB"     = "REPUBLICANOS"
+    )
+  )
+
+tw_lookup_1to1 <- tw_lookup %>%
+  # mark which rows have an fb_key that is in fb_truth
+  mutate(
+    fb_in_truth = !is.na(fb_key) & fb_key %in% fb_truth$fb_key,
+    has_party   = !is.na(party_from_handles) & party_from_handles != ""
+  ) %>%
+  arrange(
+    tw_key,
+    desc(fb_in_truth),   
+    desc(!is.na(fb_key) & fb_key != ""),
+    desc(has_party)
+  ) %>%
+  group_by(tw_key) %>%
+  slice(1) %>%         
+  ungroup() %>%
+  dplyr::select(-fb_in_truth, -has_party)
+
+# sanity check: now unique
+stopifnot(!anyDuplicated(tw_lookup_1to1$tw_key))
+```
+
+
+```{r}
+# df_X <- df_X %>%
+#   dplyr::select(
+#     -any_of(c("partido", "party")),
+#     -matches("^ideology_2021(\\..+)?$"),
+#     -matches("^ProGov(\\..+)?$"),
+#     -matches("^state(\\..+)?$")
+#   )
+
+df_insta <- df_insta %>%
+  mutate(ig_key = clean_handle(alias_handle(author))) %>%
+  left_join(ig_lookup, by = "ig_key", relationship = "many-to-one") %>%
+  left_join(fb_truth,  by = "fb_key", relationship = "many-to-one") %>%
+  mutate(
+    party         = coalesce(party, party_from_handles),
+    ideology_2021  = coalesce(ideology_2021, ideology_from_handles),
+    state         = coalesce(state, state_from_handles)
+  ) %>%
+  # bring ProGov only as a fallback, then coalesce
+  left_join(
+    parties %>% transmute(party = Party, ProGov_fallback = ProGov),
+    by = "party",
+    relationship = "many-to-one"
+  ) %>%
+  mutate(ProGov = coalesce(ProGov, ProGov_fallback)) %>%
+  dplyr::select(-ig_key, -fb_key,-party_from_handles, -ideology_from_handles, -state_from_handles,-ProGov_fallback)
+  #Inspect missing cases
+  insta_missing_party <- df_insta %>%
+  filter(is.na(party)) %>%
+  distinct(author) %>%
+  arrange(author)
+  # insta_missing_party
+
+############# TWITTER ##################
+df_X <- df_X %>%
+  mutate(tw_key = clean_handle(alias_handle(author))) %>%
+  left_join(tw_lookup_1to1, by = "tw_key", relationship = "many-to-one") %>%
+  left_join(fb_truth,       by = "fb_key", relationship = "many-to-one") %>%
+  mutate(
+    party         = coalesce(party, party_from_handles),
+    ideology_2021  = coalesce(ideology_2021, ideology_from_handles),
+    state         = coalesce(state, state_from_handles)
+  ) %>%
+  left_join(
+    parties %>% transmute(party = Party, ProGov_fallback = ProGov),
+    by = "party",
+    relationship = "many-to-one"
+  ) %>%
+  mutate(ProGov = coalesce(ProGov, ProGov_fallback)) %>%
+  dplyr::select(-tw_key, -fb_key, -party_from_handles, -ideology_from_handles, -state_from_handles,-ProGov_fallback)
+  #Inspect for missing cases
+  X_missing_party <- df_X %>%
+  filter(is.na(party)) %>%
+  distinct(author) %>%
+  arrange(author)
+  # X_missing_party
+```
+# Clean 
+```{r}
+df_fb_clean <- df_FB %>%
+  dplyr::rename(ideology_2021 = `2021_ideological_score`)
+
+df_fb_clean <- df_fb_clean %>%
+  dplyr::select(postID, 
+                author,
+                page_name,
+                thread_id,
+                text_combined,
+                timestamp,
+                page_created,
+                page_likes,
+                page_id,
+                page_followers,
+                type,
+                post_format,
+                has_hashtags,
+                engagement,
+                interactions,
+                comments,
+                shares,        
+                likes, 
+                likes_love,  
+                likes_wow,   
+                likes_haha,   
+                likes_sad,   
+                likes_angry,
+                likes_care,
+                views_post,
+                views_total,
+                views_total_crossposts,
+                hashtags,
+                url,
+                url_original,
+                party,
+                state,
+                ideology_2021,
+                ProGov)
+
+
+df_insta_clean <- df_insta %>% 
+  dplyr::select(postID,
+                author, 
+                body,
+                timestamp,
+                type,
+                url,
+                hashtags,
+                usertags,
+                num_likes,
+                num_comments,
+                engagement,
+                has_hashtags,
+                has_tags,
+                party,
+                ideology_2021,
+                ProGov)
+                
+df_X_clean <- df_X %>% 
+  dplyr::select(
+    postID,
+    author,
+    author_fullname,
+    author_followers,
+    body,
+    timestamp,
+    unix_timestamp,
+    link,
+    urls,
+    is_retweet,
+    retweeted_user,
+    is_quote_tweet,
+    quoted_user,
+    is_reply,
+    replied_user,
+    retweet_count,
+    hashtags,
+    images,
+    videos,
+    mentions,
+    has_hashtags,
+    has_image,
+    has_video,
+    has_tags,
+    like_count,
+    quote_count,
+    reply_count,
+    impression_count,
+    engagement,
+    party,
+    ideology_2021,
+    ProGov)
+```
+
+# Robustness Checks
+```{r}
+# Helper to build one formatted correlation table
+make_corr_table <- function(df, vars) {
+  
+  # Keep only requested variables that actually exist in the data
+  vars <- vars[vars %in% names(df)]
+  
+  # Function to compute one cell
+  get_corr_cell <- function(v1, v2, data) {
+    x <- data[[v1]]
+    y <- data[[v2]]
+    
+    # Pairwise complete cases
+    ok <- stats::complete.cases(x, y)
+    x <- x[ok]
+    y <- y[ok]
+    
+    # Avoid errors when there is no variation / too few cases
+    if (length(x) < 3 || length(unique(x)) < 2 || length(unique(y)) < 2) {
+      return(NA_character_)
+    }
+    
+    test <- suppressWarnings(stats::cor.test(x, y, method = "pearson"))
+    r <- unname(test$estimate)
+    p <- test$p.value
+    
+    paste0(
+      sprintf("%.3f", r),
+      sig_stars(p),
+      "\n(",
+      format_p_apa(p),
+      ")"
+    )
+  }
+  
+  # Build matrix
+  out <- expand_grid(row_var = vars, col_var = vars) %>%
+    mutate(
+      value = map2_chr(row_var, col_var, ~{
+        if (.x == .y) {
+          "1.000\n(—)"
+        } else {
+          get_corr_cell(.x, .y, df)
+        }
+      })
+    ) %>%
+    pivot_wider(names_from = col_var, values_from = value) %>%
+    rename(Variable = row_var)
+  
+  out
+}
+
+# Facebook
+fb_vars <- c("comments", "shares", "likes", "likes_love", "likes_wow",
+  "likes_haha", "likes_sad", "likes_angry", "likes_care")
+fb_corr_table <- make_corr_table(df_FB, fb_vars)
+
+# Instagram
+insta_vars <- c("num_comments", "num_likes")
+
+insta_corr_table <- make_corr_table(df_insta, insta_vars)
+
+# Twitter
+twitter_vars <- c("retweet_count", "reply_count", "like_count", "quote_count")
+
+twitter_corr_table <- make_corr_table(df_X, twitter_vars)
+
+# View
+fb_corr_table
+insta_corr_table
+twitter_corr_table
+
+# Export
+openxlsx::write.xlsx(
+  list(
+    Facebook = fb_corr_table,
+    Instagram = insta_corr_table,
+    Twitter = twitter_corr_table
+  ),
+  file = here::here("..", "_output", "engagement_component_correlations.xlsx"),
+  overwrite = TRUE
+)
+```
+
+
+
+
+
+# Export
+```{r}
+# Data on deputados
+readr::write_csv2(
+  deputados_df,
+  here::here("_processed_data", "deputados_df.csv"))
+readr::write_rds(
+  deputados_df,
+  here::here("_processed_data", "deputados_df.rds"))
+readr::write_csv2(
+  deputados_df_handles,
+  here::here("_processed_data", "deputados_df_handles.csv"))
+readr::write_rds(
+  deputados_df_handles,
+  here::here("_processed_data", "deputados_df_handles.rds"))
+
+# Platform data
+readr::write_csv2(
+  df_fb_clean,
+  here::here("..", "_processed_data", "df_fb_clean.csv")
+  )
+readr::write_rds(
+  df_fb_clean,
+  here::here("..", "_processed_data", "df_fb_clean.rds")
+  )
+
+readr::write_csv2(
+  df_insta_clean,
+  here::here("..", "_processed_data", "df_insta_clean.csv"))
+readr::write_rds(
+  df_insta_clean,
+  here::here("..", "_processed_data", "df_insta_clean.rds"))
+
+readr::write_csv2(
+  df_X_clean,
+  here::here("..", "_processed_data", "df_X_clean.csv"))
+readr::write_rds(
+  df_X_clean,
+  here::here("..", "_processed_data", "df_X_clean.rds"))
+```

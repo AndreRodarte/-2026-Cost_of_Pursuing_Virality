@@ -1,0 +1,458 @@
+---
+title: "ContentAnalysisValidation"
+author: "André K. Rodarte"
+date: "2026-03-08"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(tidyverse)
+library(tidytext)
+library(tokenizers)
+library("lexiconPT")
+library(readr)
+library(dplyr)
+
+```
+
+**Set up**
+```{r}
+options(digits = 3)
+options(scipen = 999)
+set.seed(123)
+
+# Set working directory
+setwd("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic")
+```
+
+
+# Datasets
+```{r, results='hide', message=FALSE, warning=FALSE}
+df_fb    <- readr::read_rds(here::here("..", "_processed_data", "df_fb_clean.rds"))
+```
+
+
+
+# Dictionaries
+```{r}
+keywords_parochial <- c(
+    # support / credit-claiming / delivery
+    "apoio",
+    "apoi(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    # infrastructure / public works
+    "asfaltic[oa]s?",
+    "calcad(?:a|as)?",
+    "infraestrutura",
+    "obra(?:s)?",
+    "paviment(?:ar|a|ou|amos|aram|ando)",
+    "pavimentac(?:ao|oes)",
+    "recapeamento(?:s)?",
+    "revitalizac(?:ao|oes)",
+    # goods/services delivered
+    "assistencia(?:s)?",
+    "beneficio(?:s)?",
+    "equipamento(?:s)?",
+    "exame(?:s)?",
+    "mobiliari[oa]s?",
+    "multira(?:o|os)",
+    # earmarks
+    "repass(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    "destin(?:ar|o|a|am|amos|ei|ou|aram|ando|ad[oa]s?)",
+    "custeio",
+    "emenda(?:s)?",
+    "recurso(?:s)?",
+    "verba(?:s)?",
+    "repasse(?:s)?",
+    "remessa(?:s)?",
+    "destinad[ao]s?",
+    "destinacao",
+    "milha(?:o|oes)",
+    # local politics / municipal actors
+    "municipal(?:es)?",
+    "municipio(?:s)?",
+    "lideranc(?:a|as)",
+    "prefeit(?:o|a|os|as)",
+    "prefeitura(?:s)?",
+    "vereador(?:a|as|es)?",
+    "secretari[ao]s?",
+    "superintendente(?:s)?",
+    "gestor[ae]s? municipal(?:es)?",
+    "demandas do municipio",
+    "demandas municipais",
+    "necessidade(?:s)?"
+)
+
+
+pattern_parochial <- paste(keywords_parochial, collapse = "|")
+
+
+#######################################
+#######################################
+keywords_programmatic <- c(
+   # institutional arenas
+   "ccj",
+   "comiss(?:ao|oes)",
+   "plenario",
+   "pauta(?:s)?",
+   "pautar",
+   "sess(?:ao|oes)",
+   "tramit(?:ar|e)",
+   "tramitac(?:ao|oes)",
+   "urgencia",
+   # core legislative objects
+   "lei(?:s)?",
+   "projeto(?:s)?",
+   "decreto(?:s)?",
+   "medida(?:s)?",
+   "dispositivo(?:s)?",
+   "materia(?:s)?",
+   "normativ[oa]s?",
+   # legality / constitutionality
+   "constitucional(?:idade)?",
+   "inconstitucional(?:idade)?",
+   # deliberation / evaluation 
+   "apreci(?:ar|ac(?:ao|oes))",
+   "deliberac(?:ao|oes)",
+   "debate(?:s)?",
+   "definic(?:ao|oes)",
+   "validade",
+   # approval / enactment
+   "aprova(?:r|c(?:ao|oes))",   
+   "aprovad[oa]s?",
+   "promulgac(?:ao|oes)",
+   "promulgar",
+   "publicac(?:ao|oes)",
+   "veto(?:s)?",
+   "vetar",
+   "vigor",
+   # regulation / reform
+   "reforma(?:s)?",
+   "regimental",
+   "regimento",
+   "regulamentac(?:ao|oes)",
+   "regulamentar",
+   "revog(?:ar|ac(?:ao|oes))?",    
+   "suprimir",
+   "suspens(?:ao|oes)",
+   "suspender",
+   "proibic(?:ao|oes)",
+   "isenc(?:ao|oes)",
+   # legislative protocols 
+   "coautora?s?",
+   "oficio(?:s)?",
+   "parecer(?:es)?",
+   "requerimento(?:s)?",
+   "protocol(?:ar|o|os|ei|amos|ou|aram|ando)?",
+   # voting
+   "voto(?:s)?",
+   "vot(?:ar|ac(?:ao|oes))",       
+   "votei",
+   "votamos",
+   "votaram",
+   "votarei"
+  )
+
+pattern_programmatic <- paste(keywords_programmatic, collapse = "|")
+
+#######################################
+#######################################
+keywords_lacracao <- c(
+  # escárnio
+  "agora essa",
+  "era so o que faltava",
+  "como se nao bastasse",
+  "como se ja nao bastasse",
+
+  # zombaria / desmoralização
+  "deboche",
+  "chacota",
+  "escarnio",
+  "palhacad[aá]",
+  "show de horror(?:es)?",
+  "comico se nao fosse tragico",
+  "mimimi(?:s)?",
+  "vitimismo",
+  "mamata",
+
+  # agressões, xingamentos, e desprezo direto
+  "chora",
+  "chupa",
+  "caguei",
+  "fdp",
+  "bozo",
+  "jenio",
+  "aberrac(?:ao|oes)",
+  "abjeto(?:s)?",
+  "asqueros[ao]s?",
+  "repugnante(?:s)?",
+  "ridicul[ao]s?",
+  "patetica(?:s)?|patetico(?:s)?",
+  "lixo",
+  "esgoto",
+  "escoria",
+  "verme(?:s)?",
+  "parasita(?:s)?",
+  "horda",
+  "sem carater",
+  "anti[ -]?etico(?:s)?",
+  "cara de pau",
+  "pinoquio",
+
+  # insultos comuns (pessoa / inteligência)
+  "idiota(?:s)?",
+  "imbecil(?:is|es)?",
+  "babaca(?:s)?",
+  "cretin[ao]s?",
+  "energumên?[ao]s?",
+  "tosco(?:s)?",
+  "bunda mole",
+
+  # covardia / traição / oportunismo
+  "covarde(?:s)?",
+  "trair[ao]s?",
+  "traidor(?:a|es|as)?(?: da patria)?",
+  "patife(?:s)?",
+  "patifari(?:a|as)",
+  "canalha(?:s)?",
+  "canalhic(?:e|es)",
+  "vigarista(?:s)?",
+  "farsante(?:s)?",
+  "farsa(?:s)?",
+  "charlatanism(?:o|os)",
+  "claque",
+  "capanga(?:s)?",
+  "jagunco(?:s)?",
+
+  # acusações / enquadramentos de criminalidade e corrupção
+  "bandido(?:s)?",
+  "marginal(?:is)?",
+  "chefe da quadrilha",
+  "familicia",
+  "bandidolatria",
+  "lulaladr(?:ao|oes)",
+  
+  # rotulações políticas extremas ou depreciativas
+  "militante petista(?:s)?",
+  "esquerist[ao]s?",
+  "esquerdista(?:s)?",
+  "esquerdopata(?:s)?",
+  "minion(?:s)?",
+  "bolsominion(?:s)?",
+  "gado",
+  "fascista(?:s)?",
+  "nazista(?:s)?",
+  "terraplanista(?:s)?",
+
+  # mentira / cinismo / hipocrisia
+  "mentira(?:s)?",
+  "mentiros[ao]s?",
+  "mentiroso compulsivo|mentirosa compulsiva",
+  "cinic(?:o|a|os|as)",
+  "cinismo",
+  "hipocrit(?:a|as)?",
+  "hipocrisia",
+  "lacrador(?:a|as|es)?",
+  "lacrolandia",
+  "lacrar",
+  "lacrosfera",
+  "politiqueir[ao]s?",
+  
+  # fillers / ironia curta / deboche
+  "aham",
+  "sqn",
+  "so que nao",
+  "¯\\\\_(ツ)_/¯",
+  "faz[- ]me rir",
+  "piada pronta",
+  "parabens aos envolvidos",
+  "simples assim"
+
+)
+
+pattern_lacracao <- paste(keywords_lacracao, collapse = "|")
+
+
+keywords_propagandistic <- c(
+  # attention / urgency
+  "atencao",
+  "urgente",
+  "escandal(?:o|osa)",
+  "absurdo",
+  # exposure / revelation / denunciation frames
+  "investig(?:ar|a(?:cao|coes)|o|ou|uei|amos|am|ando)",
+  "irregularidad(?:e|es)",
+  "suspeit[oa]s?",
+  "mentir(?:a|u|am|emos|ei|ou|indo)?",
+  "esquema(?:s)?",
+  "vazamento(?:s)?",
+  "indicio(?:s)?",
+  "prova(?:s)?",
+  "revel(?:ar|a(?:cao|coes)|ei|ou|am|amos|ad[oa]s?)",
+  "exposic(?:ao|oes)",
+  "expost[oa]s?",
+  "expor",
+  "exp(?:o|u)s(?:t[oa]s?)?",
+  "descobr(?:ir|i|iu|indo|imos|iram)",
+  "denunc(?:ia|iar|iei|iou|iam|iamos|as|os)",
+  "denunciad[oa]s?",
+  "apur(?:ar|ou)",
+  "suspeit[oa]s?",
+  # press/media + narrative framing
+  "imprensa",
+  "jornalista(?:s)?",
+  "midia",
+  "narrativa(?:s)?",
+  "fake\\s+news",
+  # moral condemnation + lying frames
+  "imoral",
+  "fals[oa]s?",
+  "farsa(?:s)?|farso(?:s|a|as|os)?",
+  "mentir(?:a|u|am|emos|ei|ou|indo)?|mentira(?:s)?|mentiros[oa]s?",
+  # “explainer” posture (keep conservative)
+  "entenda",
+  "esclarecedor",
+  "resumo",
+  "mostra\\s+bem",
+  "tese",
+  "opiniao",
+  "question(?:ar|ou|ei|amos|am|ando)?",
+  "depoimento(?:s)?",
+  "testemunhei",
+  "descobr(?:ir|i|iu|indo|imos|iram)",
+  "desmascar(?:ar|ei|ou|amos|ad[oa]s?)"
+)
+
+pattern_propagandistic <- paste(keywords_propagandistic, collapse = "|")
+
+
+
+# Consolidate 
+re_programmatic   <- make_re(keywords_programmatic)
+re_parochial      <- make_re(keywords_parochial)
+re_propagandistic <- make_re(keywords_propagandistic)
+re_lacracao      <- make_re(keywords_lacracao)
+```
+
+
+```{r}
+df_content_validation <- df_fb %>%
+  mutate(
+    programmatic_matches   = count_re(text_combined, re_programmatic),
+    parochial_matches      = count_re(text_combined, re_parochial),
+    propagandistic_matches = count_re(text_combined, re_propagandistic),
+    lacracao_matches       = count_re(text_combined, re_lacracao)
+  )
+```
+
+
+```{r}
+# Sample 10 posts from each category 
+sample_programmatic <- df_content_validation %>%
+  filter(programmatic_matches >= 2) %>%
+  slice_sample(n = 10)
+
+sample_parochial <- df_content_validation %>%
+  filter(parochial_matches >= 2) %>%
+  slice_sample(n = 10)
+
+sample_lacracao <- df_content_validation %>%
+  filter(lacracao_matches >= 2) %>%
+  slice_sample(n = 10)
+
+sample_propagandistic <- df_content_validation %>%
+  filter(propagandistic_matches >= 2) %>%
+  slice_sample(n = 10)
+
+# Combine and remove duplicate posts ----
+sample_fixed <- bind_rows(
+  sample_programmatic,
+  sample_parochial,
+  sample_lacracao,
+  sample_propagandistic
+) %>%
+  distinct(postID, .keep_all = TRUE)
+
+# ---- 4) Fill the remainder up to 100 with random posts from the full dataset ----
+n_to_complete <- 100 - nrow(sample_fixed)
+
+sample_random_100 <- bind_rows(
+  sample_fixed,
+  df_content_validation %>%
+    anti_join(sample_fixed %>% 
+                dplyr::select(postID), by = "postID") %>%
+    slice_sample(n = n_to_complete)
+  )
+
+# ---- 5) Check final result ----
+sample_random_100 %>%
+  summarise(
+    n_programmatic   = sum(programmatic_matches > 0, na.rm = TRUE),
+    n_parochial      = sum(parochial_matches > 0, na.rm = TRUE),
+    n_lacracao       = sum(lacracao_matches > 0, na.rm = TRUE),
+    n_propagandistic = sum(propagandistic_matches > 0, na.rm = TRUE)
+  )
+```
+
+```{r}
+# readr::write_csv(
+#   sample_random_100, 
+#   here::here("..", "_processed_data", "sample_random_100_posts.csv")
+#   )
+# readr::write_rds(
+#   df_content_validation, 
+#   here::here("..", "_processed_data", "df_content_validation.rds")
+#   )
+```
+
+#Intercoder reliability
+```{r}
+Andre_Reliability <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/_processed_data/intercoder_reliability/Andre_Content_Analysis - sample_random_100_posts.csv")
+Afonso_Reliability <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/_processed_data/intercoder_reliability/Afonso_Content_Analysis - sample_random_100_posts.csv")
+Dictionary_Reliability <- read_csv("C:/Users/andre/OneDrive/UT Austin/Dissertation [PhD UT]/Dissertation Articles/Lacracao Logic/_processed_data/intercoder_reliability/Dictionary_Content_Analysis - sample_random_100_posts.csv")
+
+# Standardize each coder file
+andre_icr <- Andre_Reliability %>%
+  transmute(
+    unit_id = as.character(postID),
+    coder_id = "Andre",
+    programmatic = ifelse(is.na(Programático), 0, Programático),
+    parochial = ifelse(is.na(Parochial), 0, Parochial),
+    antagonistic = ifelse(is.na(Antagonista), 0, Antagonista),
+    propaganda = ifelse(is.na(Propaganda), 0, Propaganda)
+  )
+
+afonso_icr <- Afonso_Reliability %>%
+  transmute(
+    unit_id = as.character(postID),
+    coder_id = "Afonso",
+    programmatic = ifelse(is.na(Programático), 0, Programático),
+    parochial = ifelse(is.na(Parochial), 0, Parochial),
+    antagonistic = ifelse(is.na(Antagonista), 0, Antagonista),
+    propaganda = ifelse(is.na(Propaganda), 0, Propaganda)
+  )
+
+Dictionary_icr <- Dictionary_Reliability %>%
+  transmute(
+    unit_id = as.character(postID),
+    coder_id = "GPT",
+    programmatic = ifelse(is.na(programmatic_matches), 0, programmatic_matches),
+    parochial = ifelse(is.na(parochial_matches), 0, parochial_matches),
+    antagonistic = ifelse(is.na(lacracao_matches), 0, lacracao_matches),
+    propaganda = ifelse(is.na(propagandistic_matches), 0, propagandistic_matches)
+  )
+```
+
+```{r}
+# Stack the three coders
+icr_data <- bind_rows(andre_icr, afonso_icr, Dictionary_icr) %>%
+  arrange(unit_id, coder_id)
+
+glimpse(icr_data)
+head(icr_data)
+
+
+# Export
+write_csv(icr_data, "icr_input.csv")
+```
+
