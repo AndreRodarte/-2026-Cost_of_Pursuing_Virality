@@ -35,12 +35,12 @@ read_camara_csv_anydelim <- function(url) {
                            show_col_types = FALSE, progress = FALSE)
   }
 
-  x |> janitor::clean_names()
+  x %>%  janitor::clean_names()
 }
 
 api_get <- function(path, query = list()) {
-  req <- request(paste0(base_api, path)) |>
-    req_url_query(!!!query) |>
+  req <- request(paste0(base_api, path)) %>% 
+    req_url_query(!!!query) %>% 
     req_headers(accept = "application/json")
   resp <- req_perform(req)
   resp_body_json(resp)
@@ -52,14 +52,14 @@ orientacoes <- map_dfr(
   years,
   \(y) read_camara_csv_anydelim(
     sprintf("%s/votacoesOrientacoes/csv/votacoesOrientacoes-%d.csv", base_file, y)
-  ) |> mutate(ano_votacao = y)
+  ) %>%  mutate(ano_votacao = y)
 )
 
 afetadas <- map_dfr(
   years,
   \(y) read_camara_csv_anydelim(
     sprintf("%s/votacoesProposicoes/csv/votacoesProposicoes-%d.csv", base_file, y)
-  ) |> mutate(ano_votacao = y)
+  ) %>%  mutate(ano_votacao = y)
 )
 
 # Sanity check: you should now see MANY columns
@@ -72,12 +72,12 @@ print(ncol(afetadas));    print(head(names(afetadas), 20))
 # -----------------------
 # Identify votes that affected MPVs 
 # -----------------------
-mpv_votes <- afetadas |>
+mpv_votes <- afetadas  %>% 
   filter(
     proposicao_sigla_tipo == "MPV",
     proposicao_ano %in% c(2019, 2020)   # year of the MP itself
     # If instead you want votes that happened in 2019–2020, use: ano_votacao %in% c(2019, 2020)
-  ) |>
+  ) %>% 
   distinct(
     id_votacao,
     data,                 # date of the vote
@@ -86,7 +86,7 @@ mpv_votes <- afetadas |>
     proposicao_numero,
     proposicao_ano,
     ano_votacao            # year of the vote file we downloaded
-  ) |>
+  ) %>% 
   mutate(
     mpv_sigla = sprintf("MPV %s/%s", proposicao_numero, proposicao_ano)
   )
@@ -94,8 +94,8 @@ mpv_votes <- afetadas |>
 # -----------------------
 # Join party/bloc orientations to those MPV votes
 # -----------------------
-mpv_orientacoes <- mpv_votes |>
-  inner_join(orientacoes, by = c("id_votacao", "ano_votacao")) |>
+mpv_orientacoes <- mpv_votes %>% 
+  inner_join(orientacoes, by = c("id_votacao", "ano_votacao")) %>% 
   transmute(
     ano_votacao,
     data_votacao = data,
@@ -111,7 +111,7 @@ mpv_orientacoes <- mpv_votes |>
     sigla_bancada,
     uri_bancada,
     orientacao
-  ) |>
+  ) %>% 
   arrange(ano_votacao, data_votacao, id_votacao, sigla_bancada)
 
 mpv_orientacoes

@@ -12,6 +12,15 @@ use_condaenv("r-reticulate", required = TRUE)
 py_config()
 ```
 
+# Datasets
+
+```{r, results='hide', message=FALSE, warning=FALSE}
+df_fb    <- readr::read_rds(here::here("_processed_data", "df_fb_clean.rds"))
+df_insta <- readr::read_rds(here::here("_processed_data", "df_insta_clean.rds"))
+df_X     <- readr::read_rds(here::here("_processed_data", "df_X_clean.rds"))
+```
+
+
 ```{r}
 reticulate::py_install("leia-br", pip = TRUE) 
 # Note: 'leia-br' is the distribution name for the Brazilian Portuguese VADER
@@ -63,20 +72,6 @@ df_fb <- df_fb %>%
   )
 ```
 
-
-```{r}
-df_fb %>%
-  summarise(
-    parochial_sentiment = mean(compound_sentiment[parochial_matches > 0], na.rm = TRUE),
-    programmatic_sentiment = mean(compound_sentiment[programmatic_matches > 0], na.rm = TRUE),
-    lacracao_sentiment = mean(compound_sentiment[lacracao_matches > 0], na.rm = TRUE)
-  )
-```
-
-```{r}
-cor(df_fb$lacracao_matches, df_fb$negative_intensity, use="complete.obs")
-```
-
 ### Insta
 ```{r}
 df_insta$compound_sentiment <- vapply(
@@ -124,24 +119,17 @@ library(readr)
 #Facebook
  readr::write_rds(
    df_fb,
-   here::here("..", "_processed_data", "fb_analysis.rds")
-   )
+   here::here("_processed_data", "fb_analysis.rds"))
  readr::write_csv2(
    df_fb,
-   here::here("..", "_processed_data", "fb_analysis.csv")
-   )
+   here::here("_processed_data", "fb_analysis.csv"))
 #Insta
  readr::write_rds(
    df_insta,
-   here::here("..", "_processed_data", "insta_analysis.rds")
-   )
+   here::here("_processed_data", "insta_analysis.rds"))
 #X
  readr::write_rds(
    df_X,
-   here::here("..", "_processed_data", "X_analysis.rds")
-   )
+   here::here("_processed_data", "X_analysis.rds"))
  
 ```
-
-
-
