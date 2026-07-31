@@ -2349,10 +2349,7 @@ summary(model_lac)
 # Interaction prediction: How lacracao effects differ by bloc
 eff_lac <- predict_response(model_lac, terms = "political_bloc", margin = "marginalmeans")
 
-# 2. Plotting 
-font_add_google("EB Garamond", "EB Garamond")
-showtext_auto()
-
+# Plot
 ggplot(eff_lac, aes(x = x, y = predicted, color = x)) +
   geom_point(size = 4) +
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.2, size = 1) +
@@ -2411,9 +2408,10 @@ df_X_regression <- df_X_regression %>%
 model_lac_insta <- fenegbin(
   engagement ~
     lacracao_matches_z + negative_intensity +
-    ideology_2021 + political_bloc + # ideological grouping
-    type + has_tags + has_hashtags |  # content type (image/video)
-    month,                     # time FE
+    political_bloc + 
+    num_posts_z + 
+    type + has_tags + has_hashtags |  
+    month,                     
   cluster = ~author,
   data = df_insta_regression,
   data.save = TRUE
@@ -2422,11 +2420,11 @@ model_lac_insta <- fenegbin(
 model_lac_X <- fenegbin(
   engagement ~
     lacracao_matches_z + negative_intensity +
-    author_followers_z +      # profile control
-    num_posts_z +             # posting activity
-    ideology_2021 + political_bloc + # ideological grouping
+    author_followers_z +      
+    num_posts_z +             
+    political_bloc + 
     has_tags + has_image + has_video + has_hashtags |
-    month,                    # time FE
+    month,                    
   cluster = ~author,
   data = df_X_regression,
   data.save = TRUE
@@ -2454,6 +2452,22 @@ tidy_model2_X
 *Summary:* Across all three platforms, both the intensity of antagonistic rhetoric and negative sentiment are positively and significantly associated with engagement. On Facebook, a one standard deviation increase in antagonistic content is associated with higher engagement (β = 0.095, p \< 0.001), and negative sentiment exhibits a similarly strong positive relationship (β = 0.341, p \< 0.001). Comparable patterns emerge on Instagram, where both antagonistic content (β = 0.083, p \< 0.001) and negative sentiment (β = 0.312, p \< 0.001) are significantly associated with increased engagement. On X, these effects are even more pronounced: antagonistic content is positively associated with engagement (β = 0.115, p \< 0.001), while negative sentiment shows a particularly strong relationship (β = 0.740, p \< 0.001).
 
 ######Predictions
+
+```{r}
+# Calculate a coherent ideology value for the center-government bloc
+center_ideology_X <- df_X_regression %>%
+  filter(
+    political_bloc == "Center_Government",
+    !is.na(ideology_2021)
+  ) %>%
+  summarise(
+    value = mean(ideology_2021, na.rm = TRUE)
+  ) %>%
+  pull(value)
+
+center_ideology_X
+```
+
 
 ```{r}
 #Facebook
@@ -2519,7 +2533,6 @@ predictions(
   vcov = FALSE
 )
 ```
-
 For X, the predictions indicate that, holding the other covariates constant at typical values, a post with antagonistic content one standard deviation below the mean is expected to receive about 88.9 units of engagement, compared to 99.7 at the mean and 111.9 one standard deviation above the mean.
 
 
@@ -3485,15 +3498,12 @@ print(rr_results_table)
 ```{r}
 rr_results_table %>%
   openxlsx::write.xlsx(
-    file = here::here("..", "_output", "engagement_transitions.xlsx")
+    file = here::here("_output", "engagement_transitions.xlsx")
   )
-```
 
-
-```{r}
 openxlsx::write.xlsx(
   list(
-    fb_programmatic_parochial = tidy_model %>%
+    fb_programmatic_parochial = tidy_model_congressional %>%
       dplyr::mutate(sig = sig_stars(p.value)),
     
     fb_lacracao = tidy_model2 %>%
@@ -3511,7 +3521,7 @@ openxlsx::write.xlsx(
     x_lacracao = tidy_model2_X %>%
       dplyr::mutate(sig = sig_stars(as.numeric(p.value)))
   ),
-  file = here::here("..", "_output", "regression_results.xlsx"),
+  file = here::here("_output", "regression_results.xlsx"),
   overwrite = TRUE
 )
 ```

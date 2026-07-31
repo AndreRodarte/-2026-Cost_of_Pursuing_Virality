@@ -1,0 +1,581 @@
+nome;partido;uf;name_simplified
+André Janones;AVANTE;MG;andre janones
+Chiquinho Brazão;AVANTE;RJ;chiquinho brazao
+Greyce Elias;AVANTE;MG;greyce elias
+Leda Sadala;AVANTE;AP;leda sadala
+Luis Tibé;AVANTE;MG;luis tibe
+Pastor Sargento Isidório;AVANTE;BA;pastor sargento isidorio
+Sebastião Oliveira;AVANTE;PE;sebastiao oliveira
+Tito;AVANTE;BA;tito
+Alex Manente;CIDADANIA;SP;alex manente
+Arnaldo Jardim;CIDADANIA;SP;arnaldo jardim
+Carmen Zanotto;CIDADANIA;SC;carmen zanotto
+Da Vitoria;CIDADANIA;ES;da vitoria
+Daniel Coelho;CIDADANIA;PE;daniel coelho
+Marcelo Calero;CIDADANIA;RJ;marcelo calero
+Paula Belmonte;CIDADANIA;DF;paula belmonte
+Rubens Bueno;CIDADANIA;PR;rubens bueno
+Alan Rick;DEM;AC;alan rick
+Alexandre Leite;DEM;SP;alexandre leite
+Aníbal Gomes;DEM;CE;anibal gomes
+Arthur Oliveira Maia;DEM;BA;arthur oliveira maia
+Bilac Pinto;DEM;MG;bilac pinto
+Carlos Henrique Gaguim;DEM;TO;carlos henrique gaguim
+David Soares;DEM;SP;david soares
+Dr. Zacharias Calil;DEM;GO;dr zacharias calil
+Efraim Filho;DEM;PB;efraim filho
+Eli Corrêa Filho;DEM;SP;eli correa filho
+Elmar Nascimento;DEM;BA;elmar nascimento
+Fernando Coelho Filho;DEM;PE;fernando coelho filho
+Geninho Zuliani;DEM;SP;geninho zuliani
+Hélio Leite;DEM;PA;helio leite
+Igor Kannário;DEM;BA;igor kannario
+Jose Mario Schreiner;DEM;GO;jose mario schreiner
+Juninho do Pneu;DEM;RJ;juninho do pneu
+Juscelino Filho;DEM;MA;juscelino filho
+Kim Kataguiri;DEM;SP;kim kataguiri
+Laura Carneiro;DEM;RJ;laura carneiro
+Leur Lomanto Júnior;DEM;BA;leur lomanto junior
+Luis Miranda;DEM;DF;luis miranda
+Marcos Soares;DEM;RJ;marcos soares
+Norma Ayub;DEM;ES;norma ayub
+Olival Marques;DEM;PA;olival marques
+Onyx Lorenzoni;DEM;RS;onyx lorenzoni
+Paulo Azi;DEM;BA;paulo azi
+Pedro Lupion;DEM;PR;pedro lupion
+Pedro Paulo;DEM;RJ;pedro paulo
+Professora Dorinha Seabra Rezende;DEM;TO;professora dorinha seabra rezende
+Rodrigo Maia;DEM;RJ;rodrigo maia
+Sóstenes Cavalcante;DEM;RJ;sostenes cavalcante
+Tereza Cristina;DEM;MS;tereza cristina
+Zé Augusto Nalin;DEM;RJ;ze augusto nalin
+Alceu Moreira;MDB;RS;alceu moreira
+Baleia Rossi;MDB;SP;baleia rossi
+Carlos Bezerra;MDB;MT;carlos bezerra
+Carlos Chiodini;MDB;SC;carlos chiodini
+Celso Maldaner;MDB;SC;celso maldaner
+Daniela do Waguinho;MDB;RJ;daniela do waguinho
+Dulce Miranda;MDB;TO;dulce miranda
+Elcione Barbalho;MDB;PA;elcione barbalho
+Fabio Reis;MDB;SE;fabio reis
+Flaviano Melo;MDB;AC;flaviano melo
+Fábio Ramalho;MDB;MG;fabio ramalho
+Giovani Feltes;MDB;RS;giovani feltes
+Gutemberg Reis;MDB;RJ;gutemberg reis
+Herculano Passos;MDB;SP;herculano passos
+Hercílio Coelho Diniz;MDB;MG;hercilio coelho diniz
+Hermes Parcianello;MDB;PR;hermes parcianello
+Hildo Rocha;MDB;MA;hildo rocha
+Isnaldo Bulhões Jr.;MDB;AL;isnaldo bulhoes jr
+José Priante;MDB;PA;jose priante
+João Marcelo Souza;MDB;MA;joao marcelo souza
+Juarez Costa;MDB;MT;juarez costa
+Jéssica Sales;MDB;AC;jessica sales
+Leonardo Picciani;MDB;RJ;leonardo picciani
+Lucio Mosquini;MDB;RO;lucio mosquini
+Marcos Aurélio Sampaio;MDB;PI;marcos aurelio sampaio
+Mauro Lopes;MDB;MG;mauro lopes
+Moses Rodrigues;MDB;CE;moses rodrigues
+Márcio Biolchi;MDB;RS;marcio biolchi
+Newton Cardoso Jr;MDB;MG;newton cardoso jr
+Osmar Terra;MDB;RS;osmar terra
+Raul Henry;MDB;PE;raul henry
+Renato Queiroz;MDB;RR;renato queiroz
+Rogério Peninha Mendonça;MDB;SC;rogerio peninha mendonca
+Sergio Souza;MDB;PR;sergio souza
+Valtenir Pereira;MDB;MT;valtenir pereira
+Vinicius Farah;MDB;RJ;vinicius farah
+Walter Alves;MDB;RN;walter alves
+Adriana Ventura;NOVO;SP;adriana ventura
+Alexis Fonteyne;NOVO;SP;alexis fonteyne
+Gilson Marques;NOVO;SC;gilson marques
+Lucas Gonzalez;NOVO;MG;lucas gonzalez
+Marcel van Hattem;NOVO;RS;marcel van hattem
+Paulo Ganime;NOVO;RJ;paulo ganime
+Tiago Mitraud;NOVO;MG;tiago mitraud
+Vinicius Poit;NOVO;SP;vinicius poit
+Ricardo da Karol;PATRI;RJ;ricardo da karol
+Alcides Rodrigues;PATRIOTA;GO;alcides rodrigues
+DR. FREDERICO;PATRIOTA;MG;dr frederico
+FRED COSTA;PATRIOTA;MG;fred costa
+Marreca Filho;PATRIOTA;MA;marreca filho
+Pastor Eurico;PATRIOTA;PE;pastor eurico
+ROMAN;PATRIOTA;PR;roman
+Ricardo da Karol;PATRIOTA;RJ;ricardo da karol
+Alice Portugal;PCdoB;BA;alice portugal
+Daniel Almeida;PCdoB;BA;daniel almeida
+Jandira Feghali;PCdoB;RJ;jandira feghali
+Márcio Jerry;PCdoB;MA;marcio jerry
+Orlando Silva;PCdoB;SP;orlando silva
+PERPÉTUA ALMEIDA;PCdoB;AC;perpetua almeida
+Professora Marcivania;PCdoB;AP;professora marcivania
+Renildo Calheiros;PCdoB;PE;renildo calheiros
+Rubens Pereira Júnior;PCdoB;MA;rubens pereira junior
+Afonso Motta;PDT;RS;afonso motta
+Alex Santana;PDT;BA;alex santana
+André Figueiredo;PDT;CE;andre figueiredo
+Chico D'Angelo;PDT;RJ;chico d'angelo
+Dagoberto Nogueira;PDT;MS;dagoberto nogueira
+Damião Feliciano;PDT;PB;damiao feliciano
+Eduardo Bismarck;PDT;CE;eduardo bismarck
+FLÁVIO NOGUEIRA;PDT;PI;flavio nogueira
+Flávia Morais;PDT;GO;flavia morais
+Fábio Henrique;PDT;SE;fabio henrique
+Félix Mendonça Júnior;PDT;BA;felix mendonca junior
+Gil Cutrim;PDT;MA;gil cutrim
+Gustavo Fruet;PDT;PR;gustavo fruet
+Idilvan Alencar;PDT;CE;idilvan alencar
+Jesus Sérgio;PDT;AC;jesus sergio
+Leônidas Cristino;PDT;CE;leonidas cristino
+Marlon Santos;PDT;RS;marlon santos
+Mauro Benevides Filho;PDT;CE;mauro benevides filho
+Mário Heringer;PDT;MG;mario heringer
+Paulo Ramos;PDT;RJ;paulo ramos
+Pompeo de Mattos;PDT;RS;pompeo de mattos
+Robério Monteiro;PDT;CE;roberio monteiro
+Silvia Cristina;PDT;RO;silvia cristina
+Subtenente Gonzaga;PDT;MG;subtenente gonzaga
+Tabata Amaral;PDT;SP;tabata amaral
+Totonho Lopes;PDT;CE;totonho lopes
+Túlio Gadêlha;PDT;PE;tulio gadelha
+Wolney Queiroz;PDT;PE;wolney queiroz
+Josivaldo JP;PHS;MA;josivaldo jp
+Abílio Santana;PL;BA;abilio santana
+Aelton Freitas;PL;MG;aelton freitas
+Altineu Côrtes;PL;RJ;altineu cortes
+Bosco Costa;PL;SE;bosco costa
+Capitão Augusto;PL;SP;capitao augusto
+Capitão Fábio Abreu;PL;PI;capitao fabio abreu
+Christiane de Souza Yared;PL;PR;christiane de souza yared
+Cristiano Vale;PL;PA;cristiano vale
+Dr. Jaziel;PL;CE;dr jaziel
+Edio Lopes;PL;RR;edio lopes
+Fernando Rodolfo;PL;PE;fernando rodolfo
+Flávia Arruda;PL;DF;flavia arruda
+Gelson Azevedo;PL;RJ;gelson azevedo
+Giacobo;PL;PR;giacobo
+Giovani Cherini;PL;RS;giovani cherini
+Gorete Pereira;PL;CE;gorete pereira
+Jorge Goetten;PL;SC;jorge goetten
+Jorielson;PL;AP;jorielson
+Josimar Maranhãozinho;PL;MA;josimar maranhaozinho
+José Rocha;PL;BA;jose rocha
+João Carlos Bacelar;PL;BA;joao carlos bacelar
+João Maia;PL;RN;joao maia
+Junior Lourenço;PL;MA;junior lourenco
+Júnior Mano;PL;CE;junior mano
+Laerte Bessa;PL;DF;laerte bessa
+Lincoln Portela;PL;MG;lincoln portela
+Luiz Antônio Corrêa;PL;RJ;luiz antonio correa
+Luiz Carlos Motta;PL;SP;luiz carlos motta
+Luiz Nishimori;PL;PR;luiz nishimori
+Magda Mofatto;PL;GO;magda mofatto
+Marcelo Ramos;PL;AM;marcelo ramos
+Marcio Alvino;PL;SP;marcio alvino
+Marina Santos;PL;PI;marina santos
+Miguel Lombardi;PL;SP;miguel lombardi
+PAULO FREIRE COSTA;PL;SP;paulo freire costa
+Pastor Gil;PL;MA;pastor gil
+Policial Katia Sastre;PL;SP;policial katia sastre
+Pr. Marco Feliciano;PL;SP;pr marco feliciano
+Raimundo Costa;PL;BA;raimundo costa
+Sergio Toledo;PL;AL;sergio toledo
+Soraya Santos;PL;RJ;soraya santos
+Tiririca;PL;SP;tiririca
+Valdevan Noventa;PL;SE;valdevan noventa
+Vicentinho Júnior;PL;TO;vicentinho junior
+Vinicius Gurgel;PL;AP;vinicius gurgel
+Wellington Roberto;PL;PB;wellington roberto
+Zé Vitor;PL;MG;ze vitor
+Bacelar;PODE;BA;bacelar
+Diego Garcia;PODE;PR;diego garcia
+Eduardo Braide;PODE;MA;eduardo braide
+Igor Timo;PODE;MG;igor timo
+Josivaldo JP;PODE;MA;josivaldo jp
+José Medeiros;PODE;MT;jose medeiros
+José Nelto;PODE;GO;jose nelto
+Léo Moraes;PODE;RO;leo moraes
+Renata Abreu;PODE;SP;renata abreu
+Ricardo Teobaldo;PODE;PE;ricardo teobaldo
+Roberto de Lucena;PODE;SP;roberto de lucena
+Rodrigo Coelho;PODE;SC;rodrigo coelho
+ADRIANO DO BALDY;PP;GO;adriano do baldy
+AJ Albuquerque;PP;CE;aj albuquerque
+Afonso Hamm;PP;RS;afonso hamm
+Aguinaldo Ribeiro;PP;PB;aguinaldo ribeiro
+André Abdon;PP;AP;andre abdon
+André Fufuca;PP;MA;andre fufuca
+Angela Amin;PP;SC;angela amin
+Arthur Lira;PP;AL;arthur lira
+Beto Rosado;PP;RN;beto rosado
+Cacá Leão;PP;BA;caca leao
+Celina Leão;PP;DF;celina leao
+Christino Aureo;PP;RJ;christino aureo
+Claudio Cajado;PP;BA;claudio cajado
+Covatti Filho;PP;RS;covatti filho
+Dimas Fabiano;PP;MG;dimas fabiano
+Dr. Luiz Antonio Teixeira Jr.;PP;RJ;dr luiz antonio teixeira jr
+Eduardo da Fonte;PP;PE;eduardo da fonte
+Evair Vieira de Melo;PP;ES;evair vieira de melo
+Fausto Pinato;PP;SP;fausto pinato
+Fernando Monteiro;PP;PE;fernando monteiro
+Franco Cartafina;PP;MG;franco cartafina
+GUILHERME DERRITE;PP;SP;guilherme derrite
+Guilherme Mussi;PP;SP;guilherme mussi
+Hiran Gonçalves;PP;RR;hiran goncalves
+Iracema Portella;PP;PI;iracema portella
+Jaqueline Cassol;PP;RO;jaqueline cassol
+Jerônimo Goergen;PP;RS;jeronimo goergen
+Julio Lopes;PP;RJ;julio lopes
+Laercio Oliveira;PP;SE;laercio oliveira
+Marcelo Aro;PP;MG;marcelo aro
+Margarete Coelho;PP;PI;margarete coelho
+Mário Negromonte Jr.;PP;BA;mario negromonte jr
+Neri Geller;PP;MT;neri geller
+Nilson F. Stainsack;PP;SC;nilson f stainsack
+Osmar Serraglio;PP;PR;osmar serraglio
+Pedro Westphalen;PP;RS;pedro westphalen
+Pinheirinho;PP;MG;pinheirinho
+Professor Alcides;PP;GO;professor alcides
+Ricardo Barros;PP;PR;ricardo barros
+Ricardo Izar;PP;SP;ricardo izar
+Ronaldo Carletto;PP;BA;ronaldo carletto
+Schiavinato;PP;PR;schiavinato
+Átila Lins;PP;AM;atila lins
+Átila Lira;PP;PI;atila lira
+Aelton Freitas;PR;MG;aelton freitas
+Jorielson;PR;AP;jorielson
+Laerte Bessa;PR;DF;laerte bessa
+Ely Santos;PRB;SP;ely santos
+Henrique do Paraíso;PRB;SP;henrique do paraiso
+Marcelo Squassoni;PRB;SP;marcelo squassoni
+Tia Eron;PRB;BA;tia eron
+Acácio Favacho;PROS;AP;acacio favacho
+Boca Aberta;PROS;PR;boca aberta
+Capitão Wagner;PROS;CE;capitao wagner
+Carla Dickson;PROS;RN;carla dickson
+Clarissa Garotinho;PROS;RJ;clarissa garotinho
+Eros Biondini;PROS;MG;eros biondini
+Gastão Vieira;PROS;MA;gastao vieira
+Toninho Wandscheer;PROS;PR;toninho wandscheer
+Uldurico Junior;PROS;BA;uldurico junior
+Vaidon Oliveira;PROS;CE;vaidon oliveira
+Weliton Prado;PROS;MG;weliton prado
+Alessandro Molon;PSB;RJ;alessandro molon
+Aliel Machado;PSB;PR;aliel machado
+Bira do Pindaré;PSB;MA;bira do pindare
+Camilo Capiberibe;PSB;AP;camilo capiberibe
+Cássio Andrade;PSB;PA;cassio andrade
+Danilo Cabral;PSB;PE;danilo cabral
+Denis Bezerra;PSB;CE;denis bezerra
+Elias Vaz;PSB;GO;elias vaz
+Emidinho Madeira;PSB;MG;emidinho madeira
+Felipe Carreras;PSB;PE;felipe carreras
+Felipe Rigoni;PSB;ES;felipe rigoni
+Gervásio Maia;PSB;PB;gervasio maia
+Gonzaga Patriota;PSB;PE;gonzaga patriota
+Heitor Schuch;PSB;RS;heitor schuch
+Jefferson Campos;PSB;SP;jefferson campos
+Jhc;PSB;AL;jhc
+João H. Campos;PSB;PE;joao h campos
+Júlio Delgado;PSB;MG;julio delgado
+Liziane Bayer;PSB;RS;liziane bayer
+Luciano Ducci;PSB;PR;luciano ducci
+Lídice da Mata;PSB;BA;lidice da mata
+Marcelo Freixo;PSB;RJ;marcelo freixo
+Marcelo Nilo;PSB;BA;marcelo nilo
+Mauro Nazif;PSB;RO;mauro nazif
+Milton Coelho;PSB;PE;milton coelho
+Odorico Monteiro;PSB;CE;odorico monteiro
+Rafael Motta;PSB;RN;rafael motta
+Ricardo Silva;PSB;SP;ricardo silva
+Rodrigo Agostinho;PSB;SP;rodrigo agostinho
+Rodrigo Coelho;PSB;SC;rodrigo coelho
+Rosana Valle;PSB;SP;rosana valle
+Tabata Amaral;PSB;SP;tabata amaral
+Tadeu Alencar;PSB;PE;tadeu alencar
+Ted Conti;PSB;ES;ted conti
+Vilson da Fetaemg;PSB;MG;vilson da fetaemg
+Aluisio Mendes;PSC;MA;aluisio mendes
+André Ferreira;PSC;PE;andre ferreira
+DaLua do Rota;PSC;AP;dalua do rota
+Euclydes Pettersen;PSC;MG;euclydes pettersen
+Gilberto Nascimento;PSC;SP;gilberto nascimento
+Glaustin da Fokus;PSC;GO;glaustin da fokus
+Lauriete;PSC;ES;lauriete
+Leonardo Gadelha;PSC;PB;leonardo gadelha
+Osires Damaso;PSC;TO;osires damaso
+Otoni de Paula;PSC;RJ;otoni de paula
+PAULO EDUARDO MARTINS;PSC;PR;paulo eduardo martins
+Pedro Dalua;PSC;AP;pedro dalua
+Ricardo da Karol;PSC;RJ;ricardo da karol
+Alexandre Serfiotis;PSD;RJ;alexandre serfiotis
+André de Paula;PSD;PE;andre de paula
+Antonio Brito;PSD;BA;antonio brito
+Cezinha de Madureira;PSD;SP;cezinha de madureira
+Charles Fernandes;PSD;BA;charles fernandes
+Danrlei de Deus Hinterholz;PSD;RS;danrlei de deus hinterholz
+Darci de Matos;PSD;SC;darci de matos
+Delegado Éder Mauro;PSD;PA;delegado eder mauro
+Diego Andrade;PSD;MG;diego andrade
+Domingos Neto;PSD;CE;domingos neto
+Edilázio Júnior;PSD;MA;edilazio junior
+Expedito Netto;PSD;RO;expedito netto
+Flordelis;PSD;RJ;flordelis
+Francisco Jr.;PSD;GO;francisco jr
+Fábio Mitidieri;PSD;SE;fabio mitidieri
+Fábio Trad;PSD;MS;fabio trad
+Haroldo Cathedral;PSD;RR;haroldo cathedral
+Hugo Leal;PSD;RJ;hugo leal
+Joaquim Passarinho;PSD;PA;joaquim passarinho
+Jones Moura;PSD;RJ;jones moura
+José Nunes;PSD;BA;jose nunes
+Júlio Cesar;PSD;PI;julio cesar
+Júnior Ferrari;PSD;PA;junior ferrari
+Marco Bertaiolli;PSD;SP;marco bertaiolli
+Marx Beltrão;PSD;AL;marx beltrao
+Misael Varella;PSD;MG;misael varella
+Neucimar Fraga;PSD;ES;neucimar fraga
+Otto Alencar Filho;PSD;BA;otto alencar filho
+Paulo Magalhães;PSD;BA;paulo magalhaes
+Paulo Vicente Caleffi;PSD;RS;paulo vicente caleffi
+Pedro Augusto;PSD;RJ;pedro augusto
+Pedro Augusto Palareti;PSD;RJ;pedro augusto palareti
+Reinhold Stephanes Junior;PSD;PR;reinhold stephanes junior
+Ricardo Guidi;PSD;SC;ricardo guidi
+Sargento Fahur;PSD;PR;sargento fahur
+Sidney Leite;PSD;AM;sidney leite
+Stefano Aguiar;PSD;MG;stefano aguiar
+Sérgio Brito;PSD;BA;sergio brito
+VERMELHO;PSD;PR;vermelho
+Wladimir Garotinho;PSD;RJ;wladimir garotinho
+Adolfo Viana;PSDB;BA;adolfo viana
+Alexandre Frota;PSDB;SP;alexandre frota
+Aécio Neves;PSDB;MG;aecio neves
+Beto Pereira;PSDB;MS;beto pereira
+Bia Cavassa;PSDB;MS;bia cavassa
+Bruna Furlan;PSDB;SP;bruna furlan
+Carlos Sampaio;PSDB;SP;carlos sampaio
+Celso Sabino;PSDB;PA;celso sabino
+Célio Silveira;PSDB;GO;celio silveira
+Daniel Trzeciak;PSDB;RS;daniel trzeciak
+Danilo Forte;PSDB;CE;danilo forte
+Domingos Sávio;PSDB;MG;domingos savio
+Edna Henrique;PSDB;PB;edna henrique
+Eduardo Barbosa;PSDB;MG;eduardo barbosa
+Eduardo Cury;PSDB;SP;eduardo cury
+Geovania de Sá;PSDB;SC;geovania de sa
+Geraldo Resende;PSDB;MS;geraldo resende
+Lucas Redecker;PSDB;RS;lucas redecker
+Luiz Carlos;PSDB;AP;luiz carlos
+Mara Rocha;PSDB;AC;mara rocha
+Mariana Carvalho;PSDB;RO;mariana carvalho
+Miguel Haddad;PSDB;SP;miguel haddad
+Nilson Pinto;PSDB;PA;nilson pinto
+Norma Pereira;PSDB;SC;norma pereira
+Otavio Leite;PSDB;RJ;otavio leite
+Paulo Abi-Ackel;PSDB;MG;paulo abi-ackel
+Pedro Cunha Lima;PSDB;PB;pedro cunha lima
+Pedro Vilela;PSDB;AL;pedro vilela
+Rafafá;PSDB;PB;rafafa
+Rodrigo de Castro;PSDB;MG;rodrigo de castro
+Rose Modesto;PSDB;MS;rose modesto
+Rossoni;PSDB;PR;rossoni
+Ruy Carneiro;PSDB;PB;ruy carneiro
+Samuel Moreira;PSDB;SP;samuel moreira
+Shéridan;PSDB;RR;sheridan
+Tereza Nelma;PSDB;AL;tereza nelma
+Vanderlei Macris;PSDB;SP;vanderlei macris
+Vitor Lippi;PSDB;SP;vitor lippi
+Abou Anni;PSL;SP;abou anni
+Aline Sleutjes;PSL;PR;aline sleutjes
+Alê Silva;PSL;MG;ale silva
+Bia Kicis;PSL;DF;bia kicis
+Bibo Nunes;PSL;RS;bibo nunes
+Bozzella;PSL;SP;bozzella
+Carla Zambelli;PSL;SP;carla zambelli
+Carlos Jordy;PSL;RJ;carlos jordy
+Caroline de Toni;PSL;SC;caroline de toni
+Celso Sabino;PSL;PA;celso sabino
+Charlles Evangelista;PSL;MG;charlles evangelista
+Chris Tonietto;PSL;RJ;chris tonietto
+Coronel Armando;PSL;SC;coronel armando
+Coronel Chrisóstomo;PSL;RO;coronel chrisostomo
+Coronel Tadeu;PSL;SP;coronel tadeu
+Daniel Freitas;PSL;SC;daniel freitas
+Daniel Silveira;PSL;RJ;daniel silveira
+Delegado Antônio Furtado;PSL;RJ;delegado antonio furtado
+Delegado Marcelo Freitas;PSL;MG;delegado marcelo freitas
+Delegado Pablo;PSL;AM;delegado pablo
+Delegado Waldir;PSL;GO;delegado waldir
+Dr. Luiz Ovando;PSL;MS;dr luiz ovando
+Dra. Soraya Manato;PSL;ES;dra soraya manato
+Eduardo Bolsonaro;PSL;SP;eduardo bolsonaro
+Fabio Schiochet;PSL;SC;fabio schiochet
+Felipe Francischini;PSL;PR;felipe francischini
+Felipe Rigoni;PSL;ES;felipe rigoni
+Felício Laterça;PSL;RJ;felicio laterca
+Filipe Barros;PSL;PR;filipe barros
+GURGEL;PSL;RJ;gurgel
+General Girão;PSL;RN;general girao
+General Peternelli;PSL;SP;general peternelli
+Guiga Peixoto;PSL;SP;guiga peixoto
+Heitor Freire;PSL;CE;heitor freire
+Helio Lopes;PSL;RJ;helio lopes
+JUNIO AMARAL;PSL;MG;junio amaral
+Joice Hasselmann;PSL;SP;joice hasselmann
+Julian Lemos;PSL;PB;julian lemos
+Loester Trutis;PSL;MS;loester trutis
+Lourival Gomes;PSL;RJ;lourival gomes
+Luciano Bivar;PSL;PE;luciano bivar
+Luiz Lima;PSL;RJ;luiz lima
+Luiz Philippe de Orleans e Bragança;PSL;SP;luiz philippe de orleans e braganca
+Léo Motta;PSL;MG;leo motta
+Major Fabiana;PSL;RJ;major fabiana
+Marcelo Brum;PSL;RS;marcelo brum
+Marcelo Álvaro Antônio;PSL;MG;marcelo alvaro antonio
+Márcio Labre;PSL;RJ;marcio labre
+Nelson Barbudo;PSL;MT;nelson barbudo
+Nereu Crispim;PSL;RS;nereu crispim
+Nicoletti;PSL;RR;nicoletti
+Professor Joziel;PSL;RJ;professor joziel
+Professora Dayane Pimentel;PSL;BA;professora dayane pimentel
+SANDERSON;PSL;RS;sanderson
+VITOR HUGO;PSL;GO;vitor hugo
+David Miranda;PSOL;RJ;david miranda
+Edmilson Rodrigues;PSOL;PA;edmilson rodrigues
+Fernanda Melchionna;PSOL;RS;fernanda melchionna
+Glauber Braga;PSOL;RJ;glauber braga
+Ivan Valente;PSOL;SP;ivan valente
+Luiza Erundina;PSOL;SP;luiza erundina
+Marcelo Freixo;PSOL;RJ;marcelo freixo
+Sâmia Bomfim;PSOL;SP;samia bomfim
+Talíria Petrone;PSOL;RJ;taliria petrone
+Vivi Reis;PSOL;PA;vivi reis
+Áurea Carolina;PSOL;MG;aurea carolina
+AIRTON FALEIRO;PT;PA;airton faleiro
+Afonso Florence;PT;BA;afonso florence
+Alencar Santana Braga;PT;SP;alencar santana braga
+Alexandre Padilha;PT;SP;alexandre padilha
+Arlindo Chinaglia;PT;SP;arlindo chinaglia
+Benedita da Silva;PT;RJ;benedita da silva
+Beto Faro;PT;PA;beto faro
+Bohn Gass;PT;RS;bohn gass
+Carlos Veras;PT;PE;carlos veras
+Carlos Zarattini;PT;SP;carlos zarattini
+Célio Moura;PT;TO;celio moura
+Enio Verri;PT;PR;enio verri
+Erika Kokay;PT;DF;erika kokay
+Frei Anastacio Ribeiro;PT;PB;frei anastacio ribeiro
+Gleisi Hoffmann;PT;PR;gleisi hoffmann
+Helder Salomão;PT;ES;helder salomao
+Henrique Fontana;PT;RS;henrique fontana
+Jorge Solla;PT;BA;jorge solla
+Joseildo Ramos;PT;BA;joseildo ramos
+Josias Gomes;PT;BA;josias gomes
+José Airton Félix Cirilo;PT;CE;jose airton felix cirilo
+José Guimarães;PT;CE;jose guimaraes
+José Ricardo;PT;AM;jose ricardo
+João Daniel;PT;SE;joao daniel
+LEO DE BRITO;PT;AC;leo de brito
+Leonardo Monteiro;PT;MG;leonardo monteiro
+Luizianne Lins;PT;CE;luizianne lins
+Marcon;PT;RS;marcon
+Margarida Salomão;PT;MG;margarida salomao
+Maria do Rosário;PT;RS;maria do rosario
+Marília Arraes;PT;PE;marilia arraes
+Merlong Solano;PT;PI;merlong solano
+Natália Bonavides;PT;RN;natalia bonavides
+Nilto Tatto;PT;SP;nilto tatto
+Odair Cunha;PT;MG;odair cunha
+Padre João;PT;MG;padre joao
+Patrus Ananias;PT;MG;patrus ananias
+Paulo Guedes;PT;MG;paulo guedes
+Paulo Pimenta;PT;RS;paulo pimenta
+Paulo Teixeira;PT;SP;paulo teixeira
+Paulão;PT;AL;paulao
+Pedro Uczai;PT;SC;pedro uczai
+Professora Rosa Neide;PT;MT;professora rosa neide
+Rachel Marques;PT;CE;rachel marques
+Reginaldo Lopes;PT;MG;reginaldo lopes
+Rejane Dias;PT;PI;rejane dias
+Rogério Correia;PT;MG;rogerio correia
+Rubens Otoni;PT;GO;rubens otoni
+Rui Falcão;PT;SP;rui falcao
+Valmir Assunção;PT;BA;valmir assuncao
+Vander Loubet;PT;MS;vander loubet
+Vicentinho;PT;SP;vicentinho
+Waldenor Pereira;PT;BA;waldenor pereira
+Zeca Dirceu;PT;PR;zeca dirceu
+Zé Carlos;PT;MA;ze carlos
+Zé Neto;PT;BA;ze neto
+Eduardo Costa;PTB;PA;eduardo costa
+Emanuel Pinheiro Neto;PTB;MT;emanuel pinheiro neto
+Luisa Canziani;PTB;PR;luisa canziani
+Marcelo Moraes;PTB;RS;marcelo moraes
+Maurício Dziedricki;PTB;RS;mauricio dziedricki
+Nivaldo Albuquerque;PTB;AL;nivaldo albuquerque
+PEDRO AUGUSTO BEZERRA;PTB;CE;pedro augusto bezerra
+Paulo Bengtson;PTB;PA;paulo bengtson
+Pedro Lucas Fernandes;PTB;MA;pedro lucas fernandes
+Santini;PTB;RS;santini
+Wilson Santiago;PTB;PB;wilson santiago
+Célio Studart;PV;CE;celio studart
+Enrico Misasi;PV;SP;enrico misasi
+Leandre;PV;PR;leandre
+Professor Israel Batista;PV;DF;professor israel batista
+Joenia Wapichana;REDE;RR;joenia wapichana
+Aline Gurgel;REPUBLICANOS;AP;aline gurgel
+Amaro Neto;REPUBLICANOS;ES;amaro neto
+Aroldo Martins;REPUBLICANOS;PR;aroldo martins
+Benes Leocádio;REPUBLICANOS;RN;benes leocadio
+Capitão Alberto Neto;REPUBLICANOS;AM;capitao alberto neto
+Carlos Gomes;REPUBLICANOS;RS;carlos gomes
+Celso Russomanno;REPUBLICANOS;SP;celso russomanno
+Cleber Verde;REPUBLICANOS;MA;cleber verde
+Dr. Gonçalo;REPUBLICANOS;MA;dr goncalo
+Ely Santos;REPUBLICANOS;SP;ely santos
+Gil Cutrim;REPUBLICANOS;MA;gil cutrim
+Gilberto Abramo;REPUBLICANOS;MG;gilberto abramo
+Henrique do Paraíso;REPUBLICANOS;SP;henrique do paraiso
+Hugo Motta;REPUBLICANOS;PB;hugo motta
+Hélio Costa;REPUBLICANOS;SC;helio costa
+Jhonatan de Jesus;REPUBLICANOS;RR;jhonatan de jesus
+Jorge Braz;REPUBLICANOS;RJ;jorge braz
+João Campos;REPUBLICANOS;GO;joao campos
+João Roma;REPUBLICANOS;BA;joao roma
+Julio Cesar Ribeiro;REPUBLICANOS;DF;julio cesar ribeiro
+LUIZÃO GOULART;REPUBLICANOS;PR;luizao goulart
+Lafayette de Andrada;REPUBLICANOS;MG;lafayette de andrada
+Marcelo Squassoni;REPUBLICANOS;SP;marcelo squassoni
+Marcos Pereira;REPUBLICANOS;SP;marcos pereira
+Maria Rosas;REPUBLICANOS;SP;maria rosas
+Milton Vieira;REPUBLICANOS;SP;milton vieira
+Márcio Marinho;REPUBLICANOS;BA;marcio marinho
+Ossesio Silva;REPUBLICANOS;PE;ossesio silva
+Pr. Marco Feliciano;REPUBLICANOS;SP;pr marco feliciano
+Roberto Alves;REPUBLICANOS;SP;roberto alves
+Rosangela Gomes;REPUBLICANOS;RJ;rosangela gomes
+Severino Pessoa;REPUBLICANOS;AL;severino pessoa
+Silas Câmara;REPUBLICANOS;AM;silas camara
+Silvio Costa Filho;REPUBLICANOS;PE;silvio costa filho
+Tia Eron;REPUBLICANOS;BA;tia eron
+VAVÁ MARTINS;REPUBLICANOS;PA;vava martins
+Vinicius Carvalho;REPUBLICANOS;SP;vinicius carvalho
+Celso Sabino;S.PART.;PA;celso sabino
+Rodrigo Maia;S.PART.;RJ;rodrigo maia
+AUREO RIBEIRO;SOLIDARIEDADE;RJ;aureo ribeiro
+Augusto Coutinho;SOLIDARIEDADE;PE;augusto coutinho
+Bosco Saraiva;SOLIDARIEDADE;AM;bosco saraiva
+Dr. Leonardo;SOLIDARIEDADE;MT;dr leonardo
+Dra. Vanda Milani;SOLIDARIEDADE;AC;dra vanda milani
+Eli Borges;SOLIDARIEDADE;TO;eli borges
+Genecias Noronha;SOLIDARIEDADE;CE;genecias noronha
+Gustinho Ribeiro;SOLIDARIEDADE;SE;gustinho ribeiro
+Lucas Vergilio;SOLIDARIEDADE;GO;lucas vergilio
+Marina Santos;SOLIDARIEDADE;PI;marina santos
+OTTACI NASCIMENTO;SOLIDARIEDADE;RR;ottaci nascimento
+Paulo Pereira da Silva;SOLIDARIEDADE;SP;paulo pereira da silva
+Simplício Araújo;SOLIDARIEDADE;MA;simplicio araujo
+Tiago Dimas;SOLIDARIEDADE;TO;tiago dimas
+Zé Silva;SOLIDARIEDADE;MG;ze silva
